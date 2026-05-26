@@ -1,7 +1,22 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function FinancialFreedomTracker() {
   const storageKey = 'financial-freedom-tracker';
+
+  const financialData = {
+    income: 19400,
+    debtRemaining: 9000,
+    emergencyFund: 1799,
+    houseDeposit: 0,
+    freeCash: 0,
+  };
+
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      maximumFractionDigits: 0,
+    }).format(amount);
 
   const sections = [
     {
@@ -59,17 +74,21 @@ export default function FinancialFreedomTracker() {
   ];
 
   const allItems = sections.flatMap((s) => s.items);
+
   const [checked, setChecked] = useState({});
   const [proofs, setProofs] = useState({});
   const fileInputRefs = useRef({});
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
+
     if (saved) {
       setChecked(JSON.parse(saved));
     }
 
-    const savedProofs = localStorage.getItem(`${storageKey}-proofs`);
+    const savedProofs = localStorage.getItem(
+      `${storageKey}-proofs`
+    );
 
     if (savedProofs) {
       setProofs(JSON.parse(savedProofs));
@@ -77,18 +96,26 @@ export default function FinancialFreedomTracker() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(checked));
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(checked)
+    );
   }, [checked]);
 
   useEffect(() => {
-    localStorage.setItem(`${storageKey}-proofs`, JSON.stringify(proofs));
+    localStorage.setItem(
+      `${storageKey}-proofs`,
+      JSON.stringify(proofs)
+    );
   }, [proofs]);
 
   const completedCount = useMemo(() => {
     return Object.values(checked).filter(Boolean).length;
   }, [checked]);
 
-  const progress = Math.round((completedCount / allItems.length) * 100);
+  const progress = Math.round(
+    (completedCount / allItems.length) * 100
+  );
 
   const handleProofUpload = (key, file) => {
     if (!file) return;
@@ -131,12 +158,89 @@ export default function FinancialFreedomTracker() {
             boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
           }}
         >
-          <h1 style={{ margin: 0 }}>Financial Freedom Tracker</h1>
-          <p style={{ color: '#666', marginTop: '8px' }}>
+          <h1 style={{ margin: 0 }}>
+            Financial Freedom Tracker
+          </h1>
+
+          <p
+            style={{
+              color: '#666',
+              marginTop: '8px',
+            }}
+          >
             Debt Elimination • Stability • Home Ownership
           </p>
 
-          <div style={{ marginTop: '20px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '12px',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                title: 'Monthly Income',
+                value: financialData.income,
+                icon: '💰',
+              },
+              {
+                title: 'Debt Remaining',
+                value: financialData.debtRemaining,
+                icon: '💳',
+              },
+              {
+                title: 'Emergency Fund',
+                value: financialData.emergencyFund,
+                icon: '🛡️',
+              },
+              {
+                title: 'House Deposit',
+                value: financialData.houseDeposit,
+                icon: '🏠',
+              },
+            ].map((card, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#f9fafb',
+                  padding: '18px',
+                  borderRadius: '18px',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '24px',
+                    marginBottom: '10px',
+                  }}
+                >
+                  {card.icon}
+                </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: '#666',
+                    fontSize: '14px',
+                  }}
+                >
+                  {card.title}
+                </p>
+
+                <h2
+                  style={{
+                    marginTop: '8px',
+                    marginBottom: 0,
+                  }}
+                >
+                  {formatCurrency(card.value)}
+                </h2>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '24px' }}>
             <div
               style={{
                 display: 'flex',
@@ -175,13 +279,29 @@ export default function FinancialFreedomTracker() {
             marginBottom: '20px',
           }}
         >
-          <div style={{ background: 'white', padding: '18px', borderRadius: '18px' }}>
-            <p style={{ color: '#666', margin: 0 }}>Mission</p>
+          <div
+            style={{
+              background: 'white',
+              padding: '18px',
+              borderRadius: '18px',
+            }}
+          >
+            <p style={{ color: '#666', margin: 0 }}>
+              Mission
+            </p>
             <h3>Debt-Free in 90 Days</h3>
           </div>
 
-          <div style={{ background: 'white', padding: '18px', borderRadius: '18px' }}>
-            <p style={{ color: '#666', margin: 0 }}>Target</p>
+          <div
+            style={{
+              background: 'white',
+              padding: '18px',
+              borderRadius: '18px',
+            }}
+          >
+            <p style={{ color: '#666', margin: 0 }}>
+              Target
+            </p>
             <h3>Stable Household</h3>
           </div>
         </div>
@@ -220,7 +340,10 @@ export default function FinancialFreedomTracker() {
 
         {sections.map((section, index) => {
           const sectionProgress = Math.round(
-            (section.items.filter((_, idx) => checked[`${section.title}-${idx}`]).length /
+            (section.items.filter(
+              (_, idx) =>
+                checked[`${section.title}-${idx}`]
+            ).length /
               section.items.length) *
               100
           );
@@ -233,7 +356,8 @@ export default function FinancialFreedomTracker() {
                 borderRadius: '24px',
                 padding: '24px',
                 marginBottom: '20px',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+                boxShadow:
+                  '0 10px 30px rgba(0,0,0,0.06)',
               }}
             >
               <div
@@ -298,7 +422,9 @@ export default function FinancialFreedomTracker() {
                       padding: '14px',
                       borderRadius: '14px',
                       marginTop: '10px',
-                      background: checked[itemKey] ? '#dcfce7' : '#f9fafb',
+                      background: checked[itemKey]
+                        ? '#dcfce7'
+                        : '#f9fafb',
                     }}
                   >
                     <label
@@ -311,13 +437,17 @@ export default function FinancialFreedomTracker() {
                       <input
                         type="checkbox"
                         checked={!!checked[itemKey]}
-                        onChange={() => toggleItem(itemKey)}
+                        onChange={() =>
+                          toggleItem(itemKey)
+                        }
                         disabled={!proofs[itemKey]}
                       />
 
                       <span
                         style={{
-                          textDecoration: checked[itemKey] ? 'line-through' : 'none',
+                          textDecoration: checked[itemKey]
+                            ? 'line-through'
+                            : 'none',
                           fontWeight: '500',
                           flex: 1,
                         }}
@@ -328,18 +458,26 @@ export default function FinancialFreedomTracker() {
 
                     <div style={{ marginTop: '12px' }}>
                       <input
-                        ref={(el) => (fileInputRefs.current[itemKey] = el)}
+                        ref={(el) =>
+                          (fileInputRefs.current[itemKey] =
+                            el)
+                        }
                         type="file"
                         accept="image/*"
                         style={{ display: 'none' }}
                         onChange={(e) =>
-                          handleProofUpload(itemKey, e.target.files?.[0])
+                          handleProofUpload(
+                            itemKey,
+                            e.target.files?.[0]
+                          )
                         }
                       />
 
                       <button
                         onClick={() =>
-                          fileInputRefs.current[itemKey]?.click()
+                          fileInputRefs.current[
+                            itemKey
+                          ]?.click()
                         }
                         style={{
                           border: 'none',
@@ -397,7 +535,13 @@ export default function FinancialFreedomTracker() {
               >
                 <strong>Verification Checklist</strong>
 
-                <div style={{ marginTop: '10px', display: 'grid', gap: '8px' }}>
+                <div
+                  style={{
+                    marginTop: '10px',
+                    display: 'grid',
+                    gap: '8px',
+                  }}
+                >
                   <div>☐ Payment proof saved</div>
                   <div>☐ Screenshots backed up</div>
                   <div>☐ Balances verified</div>
