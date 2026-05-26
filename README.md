@@ -1,2 +1,1 @@
-# debt-tracker
-Better life choices 
+# Debt Tracker App
