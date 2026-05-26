@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 
 export default function FinancialFreedomTracker() {
   const storageKey = 'financial-freedom-tracker';
@@ -60,11 +60,19 @@ export default function FinancialFreedomTracker() {
 
   const allItems = sections.flatMap((s) => s.items);
   const [checked, setChecked] = useState({});
+  const [proofs, setProofs] = useState({});
+  const fileInputRefs = useRef({});
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       setChecked(JSON.parse(saved));
+    }
+
+    const savedProofs = localStorage.getItem(`${storageKey}-proofs`);
+
+    if (savedProofs) {
+      setProofs(JSON.parse(savedProofs));
     }
   }, []);
 
@@ -72,11 +80,30 @@ export default function FinancialFreedomTracker() {
     localStorage.setItem(storageKey, JSON.stringify(checked));
   }, [checked]);
 
+  useEffect(() => {
+    localStorage.setItem(`${storageKey}-proofs`, JSON.stringify(proofs));
+  }, [proofs]);
+
   const completedCount = useMemo(() => {
     return Object.values(checked).filter(Boolean).length;
   }, [checked]);
 
   const progress = Math.round((completedCount / allItems.length) * 100);
+
+  const handleProofUpload = (key, file) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      setProofs((prev) => ({
+        ...prev,
+        [key]: reader.result,
+      }));
+    };
+
+    reader.readAsDataURL(file);
+  };
 
   const toggleItem = (key) => {
     setChecked((prev) => ({
@@ -265,32 +292,98 @@ export default function FinancialFreedomTracker() {
                 const itemKey = `${section.title}-${idx}`;
 
                 return (
-                  <label
+                  <div
                     key={idx}
                     style={{
-                      display: 'flex',
-                      gap: '12px',
                       padding: '14px',
                       borderRadius: '14px',
                       marginTop: '10px',
                       background: checked[itemKey] ? '#dcfce7' : '#f9fafb',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={!!checked[itemKey]}
-                      onChange={() => toggleItem(itemKey)}
-                    />
-
-                    <span
+                    <label
                       style={{
-                        textDecoration: checked[itemKey] ? 'line-through' : 'none',
-                        fontWeight: '500',
+                        display: 'flex',
+                        gap: '12px',
+                        alignItems: 'center',
                       }}
                     >
-                      {item}
-                    </span>
-                  </label>
+                      <input
+                        type="checkbox"
+                        checked={!!checked[itemKey]}
+                        onChange={() => toggleItem(itemKey)}
+                        disabled={!proofs[itemKey]}
+                      />
+
+                      <span
+                        style={{
+                          textDecoration: checked[itemKey] ? 'line-through' : 'none',
+                          fontWeight: '500',
+                          flex: 1,
+                        }}
+                      >
+                        {item}
+                      </span>
+                    </label>
+
+                    <div style={{ marginTop: '12px' }}>
+                      <input
+                        ref={(el) => (fileInputRefs.current[itemKey] = el)}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) =>
+                          handleProofUpload(itemKey, e.target.files?.[0])
+                        }
+                      />
+
+                      <button
+                        onClick={() =>
+                          fileInputRefs.current[itemKey]?.click()
+                        }
+                        style={{
+                          border: 'none',
+                          background: 'black',
+                          color: 'white',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                        }}
+                      >
+                        {proofs[itemKey]
+                          ? '✅ Proof Uploaded'
+                          : '📸 Upload Proof'}
+                      </button>
+                    </div>
+
+                    {proofs[itemKey] && (
+                      <div style={{ marginTop: '14px' }}>
+                        <img
+                          src={proofs[itemKey]}
+                          alt="Proof"
+                          style={{
+                            width: '100%',
+                            borderRadius: '14px',
+                            maxHeight: '220px',
+                            objectFit: 'cover',
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            marginTop: '10px',
+                            background: '#dcfce7',
+                            padding: '10px',
+                            borderRadius: '12px',
+                            fontWeight: '600',
+                          }}
+                        >
+                          Verification Ready ✅
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
 
