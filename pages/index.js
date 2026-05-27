@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function FinancialFreedomTracker() {
-  const storageKey = 'financial-freedom-tracker';
+export default function FinancialFreedomOS() {
+  const STORAGE_KEY = 'financial-freedom-os';
 
   const [income, setIncome] = useState('');
   const [strategy, setStrategy] =
     useState('aggressive');
 
   const [expenses, setExpenses] = useState([
-    { name: 'Rent', amount: '' },
+    {
+      name: 'Rent',
+      amount: '',
+    },
   ]);
 
   const [debts, setDebts] = useState([
     {
+      id: Date.now(),
       name: 'Credit Card',
-      amount: '',
-      interest: '',
+      type: 'credit-card',
+      balance: '',
+      interestRate: '',
+      targetMonths: '3',
+      minimumPayment: '',
     },
   ]);
 
@@ -34,13 +41,17 @@ export default function FinancialFreedomTracker() {
       maximumFractionDigits: 0,
     }).format(amount || 0);
 
+  /* =========================
+     LOCAL STORAGE
+  ========================= */
+
   useEffect(() => {
     const savedChecked = localStorage.getItem(
-      `${storageKey}-checked`
+      `${STORAGE_KEY}-checked`
     );
 
     const savedProofs = localStorage.getItem(
-      `${storageKey}-proofs`
+      `${STORAGE_KEY}-proofs`
     );
 
     if (savedChecked) {
@@ -54,17 +65,21 @@ export default function FinancialFreedomTracker() {
 
   useEffect(() => {
     localStorage.setItem(
-      `${storageKey}-checked`,
+      `${STORAGE_KEY}-checked`,
       JSON.stringify(checked)
     );
   }, [checked]);
 
   useEffect(() => {
     localStorage.setItem(
-      `${storageKey}-proofs`,
+      `${STORAGE_KEY}-proofs`,
       JSON.stringify(proofs)
     );
   }, [proofs]);
+
+  /* =========================
+     UTILITIES
+  ========================= */
 
   const toggleItem = (key) => {
     setChecked((prev) => ({
@@ -73,7 +88,10 @@ export default function FinancialFreedomTracker() {
     }));
   };
 
-  const handleProofUpload = (key, file) => {
+  const handleProofUpload = (
+    key,
+    file
+  ) => {
     if (!file) return;
 
     const reader = new FileReader();
@@ -90,13 +108,14 @@ export default function FinancialFreedomTracker() {
 
   const totalChecklistItems = generatedPlan
     ? generatedPlan.months.flatMap(
-        (month) => month.checklist
+        (m) => m.tasks
       ).length
     : 0;
 
-  const completedChecklistItems = Object.values(
-    checked
-  ).filter(Boolean).length;
+  const completedChecklistItems =
+    Object.values(checked).filter(
+      Boolean
+    ).length;
 
   const progress =
     totalChecklistItems > 0
@@ -107,246 +126,398 @@ export default function FinancialFreedomTracker() {
         )
       : 0;
 
-  const generatePlan = () => {
+  /* =========================
+     FINANCIAL ENGINE
+  ========================= */
+
+  const generateFinancialRoadmap = () => {
     const monthlyIncome = Number(income);
 
-    const totalExpenses = expenses.reduce(
-      (sum, e) => sum + Number(e.amount || 0),
-      0
+    const cleanExpenses = expenses.map(
+      (e) => ({
+        ...e,
+        amount: Number(e.amount || 0),
+      })
     );
+
+    const cleanDebts = debts.map((d) => ({
+      ...d,
+      balance: Number(d.balance || 0),
+      remainingBalance: Number(
+        d.balance || 0
+      ),
+      interestRate: Number(
+        d.interestRate || 0
+      ),
+      targetMonths: Number(
+        d.targetMonths || 1
+      ),
+      minimumPayment: Number(
+        d.minimumPayment || 0
+      ),
+      status: 'active',
+    }));
+
+    const totalExpenses =
+      cleanExpenses.reduce(
+        (sum, e) => sum + e.amount,
+        0
+      );
 
     const freeCash =
       monthlyIncome - totalExpenses;
 
+    const totalDebt =
+      cleanDebts.reduce(
+        (sum, d) => sum + d.balance,
+        0
+      );
+
     const emergencyTarget =
       totalExpenses * 3;
 
-    const totalDebt = debts.reduce(
-      (sum, d) => sum + Number(d.amount || 0),
-      0
-    );
-
-    let debtPercent = 0.8;
-    let savingsPercent = 0.2;
-
-    if (strategy === 'balanced') {
-      debtPercent = 0.65;
-      savingsPercent = 0.35;
-    }
-
-    if (strategy === 'savings') {
-      debtPercent = 0.5;
-      savingsPercent = 0.5;
-    }
-
-    const sortedDebts = [...debts].sort(
-      (a, b) => {
-        if (
-          Number(b.interest || 0) !==
-          Number(a.interest || 0)
-        ) {
-          return (
-            Number(b.interest || 0) -
-            Number(a.interest || 0)
-          );
-        }
-
-        return (
-          Number(a.amount || 0) -
-          Number(b.amount || 0)
-        );
-      }
-    );
-
-    let remainingDebts = sortedDebts.map(
-      (d) => ({
-        ...d,
-        amount: Number(d.amount),
-      })
-    );
-
     let emergencyFund = 0;
 
+    let debtAllocation = 0.8;
+    let savingsAllocation = 0.2;
+
+    if (strategy === 'balanced') {
+      debtAllocation = 0.65;
+      savingsAllocation = 0.35;
+    }
+
+    if (strategy === 'savings-first') {
+      debtAllocation = 0.5;
+      savingsAllocation = 0.5;
+    }
+
     let months = [];
-    let monthNumber = 1;
+
+    let currentMonth = 1;
+
+    let activeDebts = [...cleanDebts];
 
     while (
-      remainingDebts.some(
-        (d) => d.amount > 0
+      activeDebts.some(
+        (d) =>
+          d.remainingBalance > 0
       ) &&
-      monthNumber <= 24
+      currentMonth <= 36
     ) {
-      const monthChecklist = [];
+      let monthTasks = [];
 
-      expenses.forEach((expense) => {
-        monthChecklist.push({
-          title: `Pay ${expense.name}`,
-          amount: Number(expense.amount),
-        });
-      });
+      /* =========================
+         MONTHLY EXPENSES
+      ========================= */
 
-      const debtBudget = Math.round(
-        freeCash * debtPercent
+      cleanExpenses.forEach(
+        (expense) => {
+          monthTasks.push({
+            title: `Pay ${expense.name}`,
+            amount: expense.amount,
+            type: 'expense',
+          });
+        }
       );
 
-      let remainingBudget = debtBudget;
+      /* =========================
+         MONTHLY DEBT PROCESSING
+      ========================= */
 
-      remainingDebts.forEach((debt) => {
-        if (
-          debt.amount <= 0 ||
-          remainingBudget <= 0
-        )
-          return;
-
-        const payment = Math.min(
-          debt.amount,
-          remainingBudget
+      const availableDebtBudget =
+        Math.round(
+          freeCash * debtAllocation
         );
 
-        debt.amount -= payment;
-        remainingBudget -= payment;
+      let remainingDebtBudget =
+        availableDebtBudget;
 
-        monthChecklist.push({
-          title: `Pay ${debt.name}`,
-          amount: payment,
-        });
-      });
+      activeDebts = activeDebts
+        .map((debt) => {
+          if (
+            debt.remainingBalance <= 0
+          )
+            return debt;
 
-      const savingsAmount = Math.round(
-        freeCash * savingsPercent
-      );
+          /* =========================
+             APPLY MONTHLY INTEREST
+          ========================= */
 
-      emergencyFund += savingsAmount;
+          const monthlyInterest =
+            (debt.remainingBalance *
+              (debt.interestRate /
+                100)) /
+            12;
 
-      monthChecklist.push({
+          debt.remainingBalance +=
+            monthlyInterest;
+
+          /* =========================
+             MONTHS LEFT
+          ========================= */
+
+          const remainingMonths =
+            Math.max(
+              1,
+              debt.targetMonths -
+                currentMonth +
+                1
+            );
+
+          /* =========================
+             REQUIRED PAYMENT
+          ========================= */
+
+          const requiredPayment =
+            Math.max(
+              debt.minimumPayment,
+              debt.remainingBalance /
+                remainingMonths
+            );
+
+          const actualPayment =
+            Math.min(
+              requiredPayment,
+              remainingDebtBudget,
+              debt.remainingBalance
+            );
+
+          debt.remainingBalance -=
+            actualPayment;
+
+          remainingDebtBudget -=
+            actualPayment;
+
+          if (actualPayment > 0) {
+            monthTasks.push({
+              title: `Pay ${debt.name}`,
+              amount:
+                Math.round(
+                  actualPayment
+                ),
+              type: 'debt',
+            });
+          }
+
+          /* =========================
+             DEBT CLEARED
+          ========================= */
+
+          if (
+            debt.remainingBalance <= 1
+          ) {
+            debt.remainingBalance = 0;
+
+            debt.status = 'paid';
+
+            monthTasks.push({
+              title: `${debt.name} cleared 🎉`,
+              amount: 0,
+              type: 'milestone',
+            });
+          }
+
+          return debt;
+        })
+        .filter(
+          (d) =>
+            d.remainingBalance > 0
+        );
+
+      /* =========================
+         SAVINGS ENGINE
+      ========================= */
+
+      const savingsContribution =
+        Math.round(
+          freeCash *
+            savingsAllocation
+        );
+
+      emergencyFund +=
+        savingsContribution;
+
+      monthTasks.push({
         title:
-          'Transfer Emergency Fund Savings',
-        amount: savingsAmount,
+          'Transfer to Emergency Fund',
+        amount: savingsContribution,
+        type: 'savings',
       });
 
-      if (
-        emergencyFund <
-        emergencyTarget
-      ) {
-        monthChecklist.push({
-          title: `Emergency Fund Progress (${formatCurrency(
-            emergencyFund
-          )} / ${formatCurrency(
-            emergencyTarget
-          )})`,
-          amount: 0,
-        });
-      }
+      /* =========================
+         EMERGENCY FUND STATUS
+      ========================= */
+
+      monthTasks.push({
+        title: `Emergency Fund Progress (${formatCurrency(
+          emergencyFund
+        )} / ${formatCurrency(
+          emergencyTarget
+        )})`,
+        amount: 0,
+        type: 'info',
+      });
+
+      /* =========================
+         SMART WARNINGS
+      ========================= */
 
       if (
-        totalExpenses / monthlyIncome >
+        totalExpenses /
+          monthlyIncome >
         0.65
       ) {
-        monthChecklist.push({
+        monthTasks.push({
           title:
-            'Warning: Expenses exceed 65% of income',
+            '⚠️ Warning: Expenses exceed 65% of income',
           amount: 0,
+          type: 'warning',
         });
       }
 
-      monthChecklist.push({
+      if (
+        freeCash <= 0
+      ) {
+        monthTasks.push({
+          title:
+            '⚠️ Your expenses exceed your income',
+          amount: 0,
+          type: 'warning',
+        });
+      }
+
+      if (
+        remainingDebtBudget <= 0 &&
+        activeDebts.length > 0
+      ) {
+        monthTasks.push({
+          title:
+            '⚠️ Debt payoff timeline may be unrealistic',
+          amount: 0,
+          type: 'warning',
+        });
+      }
+
+      /* =========================
+         EXECUTION TASKS
+      ========================= */
+
+      monthTasks.push({
         title:
-          'Upload all payment proofs',
+          'Upload payment screenshots',
         amount: 0,
+        type: 'execution',
       });
 
-      monthChecklist.push({
+      monthTasks.push({
         title:
-          'Verify bank balances',
+          'Verify account balances',
         amount: 0,
+        type: 'execution',
       });
 
-      monthChecklist.push({
+      monthTasks.push({
         title:
           'Avoid unnecessary spending',
         amount: 0,
+        type: 'execution',
       });
 
-      const remainingDebtTotal =
-        remainingDebts.reduce(
+      /* =========================
+         MONTH SUMMARY
+      ========================= */
+
+      const remainingDebt =
+        activeDebts.reduce(
           (sum, d) =>
-            sum + Number(d.amount || 0),
+            sum +
+            d.remainingBalance,
           0
         );
 
       months.push({
-        title: `Month ${monthNumber} Payday Checklist`,
+        title: `Month ${currentMonth} Payday Checklist`,
+        monthNumber:
+          currentMonth,
         debtPayment:
-          debtBudget - remainingBudget,
-        savings: savingsAmount,
-        remainingDebt:
-          remainingDebtTotal,
+          availableDebtBudget -
+          remainingDebtBudget,
+        savingsContribution,
+        remainingDebt,
         emergencyFund,
-        checklist: monthChecklist,
+        tasks: monthTasks,
       });
 
-      monthNumber++;
+      currentMonth++;
     }
 
-    const wealthChecklist = [];
+    /* =========================
+       WEALTH PHASE
+    ========================= */
 
-    const wealthEmergency = Math.round(
-      freeCash * 0.3
-    );
+    const wealthTasks = [];
 
-    const wealthInvesting = Math.round(
-      freeCash * 0.35
-    );
+    const emergencyAllocation =
+      Math.round(
+        freeCash * 0.3
+      );
 
-    const wealthHouse = Math.round(
-      freeCash * 0.35
-    );
+    const investmentAllocation =
+      Math.round(
+        freeCash * 0.35
+      );
 
-    wealthChecklist.push({
+    const houseAllocation =
+      Math.round(
+        freeCash * 0.35
+      );
+
+    wealthTasks.push({
       title:
         'Automate savings on payday',
       amount: 0,
+      type: 'wealth',
     });
 
-    wealthChecklist.push({
+    wealthTasks.push({
       title:
-        'Grow emergency fund monthly',
-      amount: wealthEmergency,
+        'Grow emergency fund',
+      amount:
+        emergencyAllocation,
+      type: 'wealth',
     });
 
-    wealthChecklist.push({
+    wealthTasks.push({
       title:
         'Invest into TFSA / ETFs',
-      amount: wealthInvesting,
+      amount:
+        investmentAllocation,
+      type: 'wealth',
     });
 
-    wealthChecklist.push({
+    wealthTasks.push({
       title:
-        'Save toward house deposit',
-      amount: wealthHouse,
+        'Save for house deposit',
+      amount: houseAllocation,
+      type: 'wealth',
     });
 
-    wealthChecklist.push({
+    wealthTasks.push({
       title:
-        'Avoid lifestyle inflation',
+        'Review monthly net worth',
       amount: 0,
-    });
-
-    wealthChecklist.push({
-      title:
-        'Review financial progress monthly',
-      amount: 0,
+      type: 'wealth',
     });
 
     months.push({
       title:
-        'Wealth Phase — Financial Freedom Mode',
+        'Wealth Phase — Financial Freedom',
       wealthPhase: true,
-      checklist: wealthChecklist,
+      tasks: wealthTasks,
     });
 
     setGeneratedPlan({
-      totalIncome: monthlyIncome,
+      monthlyIncome,
       totalExpenses,
       totalDebt,
       freeCash,
@@ -358,41 +529,55 @@ export default function FinancialFreedomTracker() {
   return (
     <div
       style={{
-        padding: '20px',
         background: '#f3f4f6',
         minHeight: '100vh',
-        fontFamily: 'Arial, sans-serif',
+        padding: '20px',
+        fontFamily:
+          'Arial, sans-serif',
       }}
     >
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div
+        style={{
+          maxWidth: '920px',
+          margin: '0 auto',
+        }}
+      >
         {/* HERO */}
 
         <div
           style={{
             background: 'white',
-            padding: '28px',
             borderRadius: '28px',
+            padding: '28px',
             marginBottom: '20px',
             boxShadow:
               '0 10px 30px rgba(0,0,0,0.08)',
           }}
         >
-          <h1 style={{ margin: 0 }}>
+          <h1
+            style={{
+              marginTop: 0,
+            }}
+          >
             Financial Freedom OS
           </h1>
 
           <p
             style={{
               color: '#666',
-              marginTop: '10px',
             }}
           >
-            Dynamic debt payoff, emergency
-            planning, investing, and wealth
-            roadmap engine.
+            Debt payoff, wealth
+            building, emergency
+            planning, and financial
+            execution engine.
           </p>
 
-          <div style={{ marginTop: '20px' }}>
+          <div
+            style={{
+              marginTop: '20px',
+            }}
+          >
             <div
               style={{
                 display: 'flex',
@@ -401,23 +586,30 @@ export default function FinancialFreedomTracker() {
                 marginBottom: '8px',
               }}
             >
-              <span>Overall Progress</span>
+              <span>
+                Execution Progress
+              </span>
 
-              <strong>{progress}%</strong>
+              <strong>
+                {progress}%
+              </strong>
             </div>
 
             <div
               style={{
-                background: '#e5e7eb',
                 height: '14px',
-                borderRadius: '999px',
+                background:
+                  '#e5e7eb',
+                borderRadius:
+                  '999px',
                 overflow: 'hidden',
               }}
             >
               <div
                 style={{
                   width: `${progress}%`,
-                  background: 'black',
+                  background:
+                    'black',
                   height: '14px',
                 }}
               />
@@ -425,69 +617,90 @@ export default function FinancialFreedomTracker() {
           </div>
         </div>
 
-        {/* FORM */}
+        {/* INPUTS */}
 
         <div
           style={{
             background: 'white',
-            padding: '28px',
             borderRadius: '28px',
+            padding: '28px',
             marginBottom: '20px',
             boxShadow:
               '0 10px 30px rgba(0,0,0,0.08)',
           }}
         >
-          <h2>Financial Inputs</h2>
+          <h2>
+            Financial Inputs
+          </h2>
 
           {/* INCOME */}
 
-          <div style={{ marginTop: '20px' }}>
-            <label>Monthly Income</label>
+          <div
+            style={{
+              marginTop: '20px',
+            }}
+          >
+            <label>
+              Monthly Income
+            </label>
 
             <input
               type="number"
               value={income}
               onChange={(e) =>
-                setIncome(e.target.value)
+                setIncome(
+                  e.target.value
+                )
               }
-              placeholder="19400"
               style={{
                 width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                border: '1px solid #ddd',
                 marginTop: '8px',
+                padding: '14px',
+                borderRadius:
+                  '14px',
+                border:
+                  '1px solid #ddd',
               }}
             />
           </div>
 
           {/* STRATEGY */}
 
-          <div style={{ marginTop: '24px' }}>
-            <label>Payoff Strategy</label>
+          <div
+            style={{
+              marginTop: '20px',
+            }}
+          >
+            <label>
+              Strategy
+            </label>
 
             <select
               value={strategy}
               onChange={(e) =>
-                setStrategy(e.target.value)
+                setStrategy(
+                  e.target.value
+                )
               }
               style={{
                 width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                border: '1px solid #ddd',
                 marginTop: '8px',
+                padding: '14px',
+                borderRadius:
+                  '14px',
+                border:
+                  '1px solid #ddd',
               }}
             >
               <option value="aggressive">
-                Aggressive Debt Payoff
+                Aggressive Payoff
               </option>
 
               <option value="balanced">
-                Balanced Strategy
+                Balanced
               </option>
 
-              <option value="savings">
+              <option value="savings-first">
                 Savings First
               </option>
             </select>
@@ -495,62 +708,100 @@ export default function FinancialFreedomTracker() {
 
           {/* EXPENSES */}
 
-          <div style={{ marginTop: '30px' }}>
-            <h3>Monthly Expenses</h3>
+          <div
+            style={{
+              marginTop: '30px',
+            }}
+          >
+            <h3>
+              Monthly Expenses
+            </h3>
 
-            {expenses.map((expense, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  marginTop: '12px',
-                }}
-              >
-                <input
-                  placeholder="Expense Name"
-                  value={expense.name}
-                  onChange={(e) => {
-                    const updated = [
-                      ...expenses,
-                    ];
-
-                    updated[idx].name =
-                      e.target.value;
-
-                    setExpenses(updated);
-                  }}
+            {expenses.map(
+              (
+                expense,
+                idx
+              ) => (
+                <div
+                  key={idx}
                   style={{
-                    flex: 1,
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #ddd',
+                    display:
+                      'flex',
+                    gap: '10px',
+                    marginTop:
+                      '12px',
                   }}
-                />
+                >
+                  <input
+                    placeholder="Expense Name"
+                    value={
+                      expense.name
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...expenses,
+                        ];
 
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  value={expense.amount}
-                  onChange={(e) => {
-                    const updated = [
-                      ...expenses,
-                    ];
+                      updated[
+                        idx
+                      ].name =
+                        e.target.value;
 
-                    updated[idx].amount =
-                      e.target.value;
+                      setExpenses(
+                        updated
+                      );
+                    }}
+                    style={{
+                      flex: 1,
+                      padding:
+                        '12px',
+                      borderRadius:
+                        '12px',
+                      border:
+                        '1px solid #ddd',
+                    }}
+                  />
 
-                    setExpenses(updated);
-                  }}
-                  style={{
-                    width: '140px',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #ddd',
-                  }}
-                />
-              </div>
-            ))}
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={
+                      expense.amount
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...expenses,
+                        ];
+
+                      updated[
+                        idx
+                      ].amount =
+                        e.target.value;
+
+                      setExpenses(
+                        updated
+                      );
+                    }}
+                    style={{
+                      width:
+                        '140px',
+                      padding:
+                        '12px',
+                      borderRadius:
+                        '12px',
+                      border:
+                        '1px solid #ddd',
+                    }}
+                  />
+                </div>
+              )
+            )}
 
             <button
               onClick={() =>
@@ -558,18 +809,22 @@ export default function FinancialFreedomTracker() {
                   ...expenses,
                   {
                     name: '',
-                    amount: '',
+                    amount:
+                      '',
                   },
                 ])
               }
               style={{
-                marginTop: '14px',
-                background: 'black',
+                marginTop:
+                  '14px',
+                background:
+                  'black',
                 color: 'white',
                 border: 'none',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                cursor: 'pointer',
+                padding:
+                  '12px 16px',
+                borderRadius:
+                  '12px',
               }}
             >
               + Add Expense
@@ -578,113 +833,216 @@ export default function FinancialFreedomTracker() {
 
           {/* DEBTS */}
 
-          <div style={{ marginTop: '30px' }}>
+          <div
+            style={{
+              marginTop: '30px',
+            }}
+          >
             <h3>Debts</h3>
 
-            {debts.map((debt, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns:
-                    '1fr 120px 120px',
-                  gap: '10px',
-                  marginTop: '12px',
-                }}
-              >
-                <input
-                  placeholder="Debt Name"
-                  value={debt.name}
-                  onChange={(e) => {
-                    const updated = [
-                      ...debts,
-                    ];
-
-                    updated[idx].name =
-                      e.target.value;
-
-                    setDebts(updated);
-                  }}
+            {debts.map(
+              (
+                debt,
+                idx
+              ) => (
+                <div
+                  key={
+                    debt.id
+                  }
                   style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #ddd',
+                    display:
+                      'grid',
+                    gridTemplateColumns:
+                      '1fr 120px 120px 120px 120px',
+                    gap: '10px',
+                    marginTop:
+                      '12px',
                   }}
-                />
+                >
+                  <input
+                    placeholder="Debt Name"
+                    value={
+                      debt.name
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...debts,
+                        ];
 
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  value={debt.amount}
-                  onChange={(e) => {
-                    const updated = [
-                      ...debts,
-                    ];
+                      updated[
+                        idx
+                      ].name =
+                        e.target.value;
 
-                    updated[idx].amount =
-                      e.target.value;
+                      setDebts(
+                        updated
+                      );
+                    }}
+                  />
 
-                    setDebts(updated);
-                  }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #ddd',
-                  }}
-                />
+                  <select
+                    value={
+                      debt.type
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...debts,
+                        ];
 
-                <input
-                  type="number"
-                  placeholder="% Interest"
-                  value={debt.interest}
-                  onChange={(e) => {
-                    const updated = [
-                      ...debts,
-                    ];
+                      updated[
+                        idx
+                      ].type =
+                        e.target.value;
 
-                    updated[idx].interest =
-                      e.target.value;
+                      setDebts(
+                        updated
+                      );
+                    }}
+                  >
+                    <option value="personal">
+                      Personal
+                    </option>
 
-                    setDebts(updated);
-                  }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #ddd',
-                  }}
-                />
-              </div>
-            ))}
+                    <option value="credit-card">
+                      Credit Card
+                    </option>
+
+                    <option value="loan">
+                      Loan
+                    </option>
+
+                    <option value="store">
+                      Store
+                    </option>
+                  </select>
+
+                  <input
+                    type="number"
+                    placeholder="Balance"
+                    value={
+                      debt.balance
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...debts,
+                        ];
+
+                      updated[
+                        idx
+                      ].balance =
+                        e.target.value;
+
+                      setDebts(
+                        updated
+                      );
+                    }}
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="% Interest"
+                    value={
+                      debt.interestRate
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...debts,
+                        ];
+
+                      updated[
+                        idx
+                      ].interestRate =
+                        e.target.value;
+
+                      setDebts(
+                        updated
+                      );
+                    }}
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="Months"
+                    value={
+                      debt.targetMonths
+                    }
+                    onChange={(
+                      e
+                    ) => {
+                      const updated =
+                        [
+                          ...debts,
+                        ];
+
+                      updated[
+                        idx
+                      ].targetMonths =
+                        e.target.value;
+
+                      setDebts(
+                        updated
+                      );
+                    }}
+                  />
+                </div>
+              )
+            )}
 
             <button
               onClick={() =>
                 setDebts([
                   ...debts,
                   {
+                    id: Date.now(),
                     name: '',
-                    amount: '',
-                    interest: '',
+                    type:
+                      'personal',
+                    balance:
+                      '',
+                    interestRate:
+                      '',
+                    targetMonths:
+                      '3',
+                    minimumPayment:
+                      '',
                   },
                 ])
               }
               style={{
-                marginTop: '14px',
-                background: 'black',
+                marginTop:
+                  '14px',
+                background:
+                  'black',
                 color: 'white',
                 border: 'none',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                cursor: 'pointer',
+                padding:
+                  '12px 16px',
+                borderRadius:
+                  '12px',
               }}
             >
               + Add Debt
             </button>
           </div>
 
-          {/* BUTTON */}
+          {/* GENERATE */}
 
           <button
-            onClick={generatePlan}
+            onClick={
+              generateFinancialRoadmap
+            }
             style={{
               width: '100%',
               marginTop: '36px',
@@ -692,10 +1050,10 @@ export default function FinancialFreedomTracker() {
               color: 'white',
               border: 'none',
               padding: '18px',
-              borderRadius: '16px',
+              borderRadius:
+                '16px',
               fontWeight: '700',
               fontSize: '16px',
-              cursor: 'pointer',
             }}
           >
             Generate Financial Roadmap
@@ -708,115 +1066,170 @@ export default function FinancialFreedomTracker() {
           <>
             <div
               style={{
-                background: 'white',
+                background:
+                  'white',
+                borderRadius:
+                  '28px',
                 padding: '28px',
-                borderRadius: '28px',
-                marginBottom: '20px',
+                marginBottom:
+                  '20px',
                 boxShadow:
                   '0 10px 30px rgba(0,0,0,0.08)',
               }}
             >
-              <h2>Financial Dashboard</h2>
+              <h2>
+                Financial Dashboard
+              </h2>
 
               <div
                 style={{
-                  display: 'grid',
+                  display:
+                    'grid',
                   gridTemplateColumns:
                     '1fr 1fr',
                   gap: '14px',
-                  marginTop: '20px',
+                  marginTop:
+                    '20px',
                 }}
               >
                 {[
                   {
-                    title: 'Monthly Income',
+                    label:
+                      'Income',
                     value:
-                      generatedPlan.totalIncome,
-                    icon: '💰',
+                      generatedPlan.monthlyIncome,
+                    emoji:
+                      '💰',
                   },
                   {
-                    title:
-                      'Monthly Expenses',
+                    label:
+                      'Expenses',
                     value:
                       generatedPlan.totalExpenses,
-                    icon: '📉',
+                    emoji:
+                      '📉',
                   },
                   {
-                    title: 'Total Debt',
+                    label:
+                      'Debt',
                     value:
                       generatedPlan.totalDebt,
-                    icon: '💳',
+                    emoji:
+                      '💳',
                   },
                   {
-                    title: 'Free Cash',
+                    label:
+                      'Free Cash',
                     value:
                       generatedPlan.freeCash,
-                    icon: '🚀',
+                    emoji:
+                      '🚀',
                   },
-                ].map((card, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      background: '#f9fafb',
-                      padding: '20px',
-                      borderRadius: '18px',
-                    }}
-                  >
-                    <div style={{ fontSize: '30px' }}>
-                      {card.icon}
+                ].map(
+                  (
+                    card,
+                    idx
+                  ) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background:
+                          '#f9fafb',
+                        padding:
+                          '20px',
+                        borderRadius:
+                          '18px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize:
+                            '30px',
+                        }}
+                      >
+                        {
+                          card.emoji
+                        }
+                      </div>
+
+                      <p
+                        style={{
+                          color:
+                            '#666',
+                        }}
+                      >
+                        {
+                          card.label
+                        }
+                      </p>
+
+                      <h2>
+                        {formatCurrency(
+                          card.value
+                        )}
+                      </h2>
                     </div>
-
-                    <p style={{ color: '#666' }}>
-                      {card.title}
-                    </p>
-
-                    <h2>
-                      {formatCurrency(
-                        card.value
-                      )}
-                    </h2>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             </div>
 
             {/* MONTHS */}
 
             {generatedPlan.months.map(
-              (month, monthIndex) => (
+              (
+                month,
+                monthIndex
+              ) => (
                 <div
-                  key={monthIndex}
+                  key={
+                    monthIndex
+                  }
                   style={{
-                    background: 'white',
-                    padding: '28px',
-                    borderRadius: '28px',
-                    marginBottom: '20px',
+                    background:
+                      'white',
+                    borderRadius:
+                      '28px',
+                    padding:
+                      '28px',
+                    marginBottom:
+                      '20px',
                     boxShadow:
                       '0 10px 30px rgba(0,0,0,0.08)',
                   }}
                 >
-                  <h2>{month.title}</h2>
+                  <h2>
+                    {
+                      month.title
+                    }
+                  </h2>
 
                   {!month.wealthPhase && (
                     <div
                       style={{
-                        display: 'grid',
+                        display:
+                          'grid',
                         gridTemplateColumns:
                           '1fr 1fr',
                         gap: '12px',
-                        marginTop: '20px',
+                        marginTop:
+                          '20px',
                       }}
                     >
                       <div
                         style={{
                           background:
                             '#f9fafb',
-                          padding: '18px',
+                          padding:
+                            '18px',
                           borderRadius:
                             '16px',
                         }}
                       >
-                        <p>Debt Payment</p>
+                        <p>
+                          Debt
+                          Payments
+                        </p>
 
                         <h3>
                           {formatCurrency(
@@ -829,12 +1242,16 @@ export default function FinancialFreedomTracker() {
                         style={{
                           background:
                             '#f9fafb',
-                          padding: '18px',
+                          padding:
+                            '18px',
                           borderRadius:
                             '16px',
                         }}
                       >
-                        <p>Emergency Fund</p>
+                        <p>
+                          Emergency
+                          Fund
+                        </p>
 
                         <h3>
                           {formatCurrency(
@@ -847,12 +1264,16 @@ export default function FinancialFreedomTracker() {
                         style={{
                           background:
                             '#f9fafb',
-                          padding: '18px',
+                          padding:
+                            '18px',
                           borderRadius:
                             '16px',
                         }}
                       >
-                        <p>Remaining Debt</p>
+                        <p>
+                          Remaining
+                          Debt
+                        </p>
 
                         <h3>
                           {formatCurrency(
@@ -865,32 +1286,50 @@ export default function FinancialFreedomTracker() {
                         style={{
                           background:
                             '#f9fafb',
-                          padding: '18px',
+                          padding:
+                            '18px',
                           borderRadius:
                             '16px',
                         }}
                       >
-                        <p>Savings</p>
+                        <p>
+                          Savings
+                        </p>
 
                         <h3>
                           {formatCurrency(
-                            month.savings
+                            month.savingsContribution
                           )}
                         </h3>
                       </div>
                     </div>
                   )}
 
-                  <div style={{ marginTop: '24px' }}>
-                    <h3>Checklist</h3>
+                  {/* TASKS */}
 
-                    {month.checklist.map(
-                      (task, taskIndex) => {
+                  <div
+                    style={{
+                      marginTop:
+                        '24px',
+                    }}
+                  >
+                    <h3>
+                      Execution
+                      Checklist
+                    </h3>
+
+                    {month.tasks.map(
+                      (
+                        task,
+                        taskIndex
+                      ) => {
                         const itemKey = `${month.title}-${taskIndex}`;
 
                         return (
                           <div
-                            key={taskIndex}
+                            key={
+                              taskIndex
+                            }
                             style={{
                               background:
                                 checked[
@@ -898,15 +1337,18 @@ export default function FinancialFreedomTracker() {
                                 ]
                                   ? '#dcfce7'
                                   : '#f9fafb',
-                              padding: '16px',
+                              padding:
+                                '16px',
                               borderRadius:
                                 '16px',
-                              marginTop: '12px',
+                              marginTop:
+                                '12px',
                             }}
                           >
                             <label
                               style={{
-                                display: 'flex',
+                                display:
+                                  'flex',
                                 gap: '12px',
                                 alignItems:
                                   'center',
@@ -942,7 +1384,9 @@ export default function FinancialFreedomTracker() {
                                       : 'none',
                                 }}
                               >
-                                {task.title}
+                                {
+                                  task.title
+                                }
 
                                 {task.amount >
                                   0 &&
@@ -959,7 +1403,9 @@ export default function FinancialFreedomTracker() {
                               }}
                             >
                               <input
-                                ref={(el) =>
+                                ref={(
+                                  el
+                                ) =>
                                   (fileInputRefs.current[
                                     itemKey
                                   ] = el)
@@ -970,10 +1416,13 @@ export default function FinancialFreedomTracker() {
                                   display:
                                     'none',
                                 }}
-                                onChange={(e) =>
+                                onChange={(
+                                  e
+                                ) =>
                                   handleProofUpload(
                                     itemKey,
-                                    e.target
+                                    e
+                                      .target
                                       .files?.[0]
                                   )
                                 }
@@ -988,23 +1437,27 @@ export default function FinancialFreedomTracker() {
                                 style={{
                                   background:
                                     'black',
-                                  color: 'white',
-                                  border: 'none',
+                                  color:
+                                    'white',
+                                  border:
+                                    'none',
                                   padding:
                                     '10px 14px',
                                   borderRadius:
                                     '12px',
-                                  cursor:
-                                    'pointer',
                                 }}
                               >
-                                {proofs[itemKey]
+                                {proofs[
+                                  itemKey
+                                ]
                                   ? '✅ Proof Uploaded'
                                   : '📸 Upload Proof'}
                               </button>
                             </div>
 
-                            {proofs[itemKey] && (
+                            {proofs[
+                              itemKey
+                            ] && (
                               <img
                                 src={
                                   proofs[
@@ -1013,7 +1466,8 @@ export default function FinancialFreedomTracker() {
                                 }
                                 alt="Proof"
                                 style={{
-                                  width: '100%',
+                                  width:
+                                    '100%',
                                   marginTop:
                                     '12px',
                                   borderRadius:
