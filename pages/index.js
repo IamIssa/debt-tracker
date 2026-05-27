@@ -3,6 +3,20 @@ import { useEffect, useRef, useState } from 'react';
 export default function FinancialFreedomOS() {
   const STORAGE_KEY = 'financial-freedom-os';
 
+  /* =========================
+     NAVIGATION
+  ========================= */
+
+  const [currentScreen, setCurrentScreen] =
+    useState('setup');
+
+  const [selectedMonth, setSelectedMonth] =
+    useState(null);
+
+  /* =========================
+     USER INPUTS
+  ========================= */
+
   const [income, setIncome] = useState('');
 
   const [strategy, setStrategy] =
@@ -30,13 +44,25 @@ export default function FinancialFreedomOS() {
     },
   ]);
 
+  /* =========================
+     GENERATED PLAN
+  ========================= */
+
   const [generatedPlan, setGeneratedPlan] =
     useState(null);
+
+  /* =========================
+     EXECUTION STATE
+  ========================= */
 
   const [checked, setChecked] = useState({});
   const [proofs, setProofs] = useState({});
 
   const fileInputRefs = useRef({});
+
+  /* =========================
+     FORMATTERS
+  ========================= */
 
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-ZA', {
@@ -82,7 +108,7 @@ export default function FinancialFreedomOS() {
   }, [proofs]);
 
   /* =========================
-     UTILITIES
+     CHECKLIST LOGIC
   ========================= */
 
   const toggleItem = (key) => {
@@ -109,6 +135,10 @@ export default function FinancialFreedomOS() {
 
     reader.readAsDataURL(file);
   };
+
+  /* =========================
+     PROGRESS
+  ========================= */
 
   const totalChecklistItems = generatedPlan
     ? generatedPlan.months.flatMap(
@@ -253,10 +283,6 @@ export default function FinancialFreedomOS() {
     ) {
       let monthTasks = [];
 
-      /* =========================
-         MONTHLY EXPENSES
-      ========================= */
-
       cleanExpenses.forEach(
         (expense) => {
           monthTasks.push({
@@ -267,19 +293,11 @@ export default function FinancialFreedomOS() {
         }
       );
 
-      /* =========================
-         PRIORITIZE DEBTS
-      ========================= */
-
       const prioritizedDebts =
         sortDebtsByStrategy(
           activeDebts,
           debtStrategy
         );
-
-      /* =========================
-         MONTHLY DEBT PROCESSING
-      ========================= */
 
       const availableDebtBudget =
         Math.round(
@@ -296,10 +314,6 @@ export default function FinancialFreedomOS() {
           )
             return debt;
 
-          /* =========================
-             APPLY MONTHLY INTEREST
-          ========================= */
-
           const monthlyInterest =
             (debt.remainingBalance *
               (debt.interestRate /
@@ -309,10 +323,6 @@ export default function FinancialFreedomOS() {
           debt.remainingBalance +=
             monthlyInterest;
 
-          /* =========================
-             MONTHS LEFT
-          ========================= */
-
           const remainingMonths =
             Math.max(
               1,
@@ -320,10 +330,6 @@ export default function FinancialFreedomOS() {
                 currentMonth +
                 1
             );
-
-          /* =========================
-             REQUIRED PAYMENT
-          ========================= */
 
           const requiredPayment =
             Math.max(
@@ -356,10 +362,6 @@ export default function FinancialFreedomOS() {
             });
           }
 
-          /* =========================
-             DEBT CLEARED
-          ========================= */
-
           if (
             debt.remainingBalance <= 1
           ) {
@@ -381,10 +383,6 @@ export default function FinancialFreedomOS() {
             d.remainingBalance > 0
         );
 
-      /* =========================
-         SAVINGS ENGINE
-      ========================= */
-
       const savingsContribution =
         Math.round(
           freeCash *
@@ -401,10 +399,6 @@ export default function FinancialFreedomOS() {
         type: 'savings',
       });
 
-      /* =========================
-         EMERGENCY FUND STATUS
-      ========================= */
-
       monthTasks.push({
         title: `Emergency Fund Progress (${formatCurrency(
           emergencyFund
@@ -414,50 +408,6 @@ export default function FinancialFreedomOS() {
         amount: 0,
         type: 'info',
       });
-
-      /* =========================
-         SMART WARNINGS
-      ========================= */
-
-      if (
-        totalExpenses /
-          monthlyIncome >
-        0.65
-      ) {
-        monthTasks.push({
-          title:
-            '⚠️ Warning: Expenses exceed 65% of income',
-          amount: 0,
-          type: 'warning',
-        });
-      }
-
-      if (
-        freeCash <= 0
-      ) {
-        monthTasks.push({
-          title:
-            '⚠️ Your expenses exceed your income',
-          amount: 0,
-          type: 'warning',
-        });
-      }
-
-      if (
-        remainingDebtBudget <= 0 &&
-        activeDebts.length > 0
-      ) {
-        monthTasks.push({
-          title:
-            '⚠️ Debt payoff timeline may be unrealistic',
-          amount: 0,
-          type: 'warning',
-        });
-      }
-
-      /* =========================
-         EXECUTION TASKS
-      ========================= */
 
       monthTasks.push({
         title:
@@ -480,10 +430,6 @@ export default function FinancialFreedomOS() {
         type: 'execution',
       });
 
-      /* =========================
-         MONTH SUMMARY
-      ========================= */
-
       const remainingDebt =
         activeDebts.reduce(
           (sum, d) =>
@@ -493,7 +439,7 @@ export default function FinancialFreedomOS() {
         );
 
       months.push({
-        title: `Month ${currentMonth} Payday Checklist`,
+        title: `Month ${currentMonth}`,
         monthNumber:
           currentMonth,
         debtPayment:
@@ -509,69 +455,57 @@ export default function FinancialFreedomOS() {
     }
 
     /* =========================
-       WEALTH PHASE
+       WEALTH PHASE ENGINE
     ========================= */
 
-    const wealthTasks = [];
+    const wealthMonths =
+      24;
 
-    const emergencyAllocation =
+    const emergencyMonthly =
       Math.round(
         freeCash * 0.3
       );
 
-    const investmentAllocation =
+    const investmentMonthly =
       Math.round(
         freeCash * 0.35
       );
 
-    const houseAllocation =
+    const houseMonthly =
       Math.round(
         freeCash * 0.35
       );
 
-    wealthTasks.push({
-      title:
-        'Automate savings on payday',
-      amount: 0,
-      type: 'wealth',
-    });
+    const projectedEmergency =
+      emergencyFund +
+      emergencyMonthly *
+        wealthMonths;
 
-    wealthTasks.push({
-      title:
-        'Grow emergency fund',
-      amount:
-        emergencyAllocation,
-      type: 'wealth',
-    });
+    const projectedInvestments =
+      investmentMonthly *
+      wealthMonths;
 
-    wealthTasks.push({
-      title:
-        'Invest into TFSA / ETFs',
-      amount:
-        investmentAllocation,
-      type: 'wealth',
-    });
+    const projectedHouseDeposit =
+      houseMonthly *
+      wealthMonths;
 
-    wealthTasks.push({
-      title:
-        'Save for house deposit',
-      amount: houseAllocation,
-      type: 'wealth',
-    });
+    const projectedNetWorth =
+      projectedEmergency +
+      projectedInvestments +
+      projectedHouseDeposit;
 
-    wealthTasks.push({
-      title:
-        'Review monthly net worth',
-      amount: 0,
-      type: 'wealth',
-    });
+    const savingsRate =
+      Math.round(
+        (freeCash /
+          monthlyIncome) *
+          100
+      );
 
-    months.push({
-      title:
-        'Wealth Phase — Financial Freedom',
-      wealthPhase: true,
-      tasks: wealthTasks,
-    });
+    const wealthScore =
+      Math.min(
+        100,
+        savingsRate + 25
+      );
 
     setGeneratedPlan({
       monthlyIncome,
@@ -579,10 +513,287 @@ export default function FinancialFreedomOS() {
       totalDebt,
       freeCash,
       emergencyTarget,
+      projectedEmergency,
+      projectedInvestments,
+      projectedHouseDeposit,
+      projectedNetWorth,
+      wealthScore,
+      savingsRate,
       debtStrategy,
       months,
     });
+
+    setCurrentScreen(
+      'dashboard'
+    );
   };
+
+  /* =========================
+     MONTH SCREEN
+  ========================= */
+
+  const renderMonthScreen = () => {
+    if (!selectedMonth)
+      return null;
+
+    return (
+      <div
+        style={{
+          background: 'white',
+          borderRadius: '28px',
+          padding: '24px',
+          marginBottom: '20px',
+        }}
+      >
+        <button
+          onClick={() =>
+            setCurrentScreen(
+              'dashboard'
+            )
+          }
+          style={{
+            marginBottom: '20px',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            border: 'none',
+            background: 'black',
+            color: 'white',
+          }}
+        >
+          ← Back
+        </button>
+
+        <h1>
+          {selectedMonth.title}
+        </h1>
+
+        {!selectedMonth.wealthPhase && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                '1fr 1fr',
+              gap: '12px',
+              marginTop: '20px',
+            }}
+          >
+            <DashboardCard
+              label="Debt Payments"
+              value={formatCurrency(
+                selectedMonth.debtPayment
+              )}
+            />
+
+            <DashboardCard
+              label="Emergency Fund"
+              value={formatCurrency(
+                selectedMonth.emergencyFund
+              )}
+            />
+
+            <DashboardCard
+              label="Remaining Debt"
+              value={formatCurrency(
+                selectedMonth.remainingDebt
+              )}
+            />
+
+            <DashboardCard
+              label="Savings"
+              value={formatCurrency(
+                selectedMonth.savingsContribution
+              )}
+            />
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: '24px',
+          }}
+        >
+          {selectedMonth.tasks.map(
+            (
+              task,
+              taskIndex
+            ) => {
+              const itemKey = `${selectedMonth.title}-${taskIndex}`;
+
+              return (
+                <div
+                  key={
+                    taskIndex
+                  }
+                  style={{
+                    background:
+                      checked[
+                        itemKey
+                      ]
+                        ? '#dcfce7'
+                        : '#f9fafb',
+                    padding:
+                      '16px',
+                    borderRadius:
+                      '16px',
+                    marginTop:
+                      '12px',
+                  }}
+                >
+                  <label
+                    style={{
+                      display:
+                        'flex',
+                      gap: '12px',
+                      alignItems:
+                        'center',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        !!checked[
+                          itemKey
+                        ]
+                      }
+                      disabled={
+                        !proofs[
+                          itemKey
+                        ]
+                      }
+                      onChange={() =>
+                        toggleItem(
+                          itemKey
+                        )
+                      }
+                    />
+
+                    <span
+                      style={{
+                        flex: 1,
+                        textDecoration:
+                          checked[
+                            itemKey
+                          ]
+                            ? 'line-through'
+                            : 'none',
+                      }}
+                    >
+                      {task.title}
+
+                      {task.amount >
+                        0 &&
+                        ` — ${formatCurrency(
+                          task.amount
+                        )}`}
+                    </span>
+                  </label>
+
+                  <div
+                    style={{
+                      marginTop:
+                        '12px',
+                    }}
+                  >
+                    <input
+                      ref={(el) =>
+                        (fileInputRefs.current[
+                          itemKey
+                        ] = el)
+                      }
+                      type="file"
+                      accept="image/*"
+                      style={{
+                        display:
+                          'none',
+                      }}
+                      onChange={(e) =>
+                        handleProofUpload(
+                          itemKey,
+                          e.target
+                            .files?.[0]
+                        )
+                      }
+                    />
+
+                    <button
+                      onClick={() =>
+                        fileInputRefs.current[
+                          itemKey
+                        ]?.click()
+                      }
+                      style={{
+                        background:
+                          'black',
+                        color:
+                          'white',
+                        border:
+                          'none',
+                        padding:
+                          '10px 14px',
+                        borderRadius:
+                          '12px',
+                      }}
+                    >
+                      {proofs[
+                        itemKey
+                      ]
+                        ? '✅ Proof Uploaded'
+                        : '📸 Upload Proof'}
+                    </button>
+                  </div>
+
+                  {proofs[
+                    itemKey
+                  ] && (
+                    <img
+                      src={
+                        proofs[
+                          itemKey
+                        ]
+                      }
+                      alt="Proof"
+                      style={{
+                        width:
+                          '100%',
+                        marginTop:
+                          '12px',
+                        borderRadius:
+                          '16px',
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            }
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  /* =========================
+     COMPONENTS
+  ========================= */
+
+  const DashboardCard = ({
+    label,
+    value,
+  }) => (
+    <div
+      style={{
+        background: '#f9fafb',
+        padding: '18px',
+        borderRadius: '16px',
+      }}
+    >
+      <p>{label}</p>
+      <h3>{value}</h3>
+    </div>
+  );
+
+  /* =========================
+     MAIN UI
+  ========================= */
 
   return (
     <div
@@ -600,1022 +811,667 @@ export default function FinancialFreedomOS() {
           margin: '0 auto',
         }}
       >
-        {/* HERO */}
+        {/* SETUP SCREEN */}
 
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '28px',
-            padding: '28px',
-            marginBottom: '20px',
-            boxShadow:
-              '0 10px 30px rgba(0,0,0,0.08)',
-          }}
-        >
-          <h1
-            style={{
-              marginTop: 0,
-            }}
-          >
-            Financial Freedom OS
-          </h1>
-
-          <p
-            style={{
-              color: '#666',
-            }}
-          >
-            Financial execution,
-            debt elimination,
-            savings growth and
-            wealth planning.
-          </p>
-
+        {currentScreen ===
+          'setup' && (
           <div
             style={{
-              marginTop: '20px',
+              background:
+                'white',
+              borderRadius:
+                '28px',
+              padding: '28px',
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent:
-                  'space-between',
-                marginBottom: '8px',
-              }}
-            >
-              <span>
-                Execution Progress
-              </span>
+            <h1>
+              Financial Freedom OS
+            </h1>
 
-              <strong>
-                {progress}%
-              </strong>
-            </div>
+            <p>
+              Build your
+              intelligent
+              financial roadmap
+            </p>
+
+            {/* INCOME */}
 
             <div
               style={{
-                height: '14px',
-                background:
-                  '#e5e7eb',
-                borderRadius:
-                  '999px',
-                overflow: 'hidden',
+                marginTop:
+                  '20px',
               }}
             >
-              <div
+              <label>
+                Monthly Income
+              </label>
+
+              <input
+                type="number"
+                value={income}
+                onChange={(e) =>
+                  setIncome(
+                    e.target.value
+                  )
+                }
                 style={{
-                  width: `${progress}%`,
-                  background:
-                    'black',
-                  height: '14px',
+                  width:
+                    '100%',
+                  marginTop:
+                    '8px',
+                  padding:
+                    '14px',
+                  borderRadius:
+                    '14px',
+                  border:
+                    '1px solid #ddd',
                 }}
               />
             </div>
-          </div>
-        </div>
 
-        {/* INPUTS */}
+            {/* STRATEGIES */}
 
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '28px',
-            padding: '28px',
-            marginBottom: '20px',
-            boxShadow:
-              '0 10px 30px rgba(0,0,0,0.08)',
-          }}
-        >
-          <h2>
-            Financial Inputs
-          </h2>
-
-          {/* INCOME */}
-
-          <div
-            style={{
-              marginTop: '20px',
-            }}
-          >
-            <label>
-              Monthly Income
-            </label>
-
-            <input
-              type="number"
-              value={income}
-              onChange={(e) =>
-                setIncome(
-                  e.target.value
-                )
-              }
-              style={{
-                width: '100%',
-                marginTop: '8px',
-                padding: '14px',
-                borderRadius:
-                  '14px',
-                border:
-                  '1px solid #ddd',
-              }}
-            />
-          </div>
-
-          {/* STRATEGY */}
-
-          <div
-            style={{
-              marginTop: '20px',
-            }}
-          >
-            <label>
-              Financial Strategy
-            </label>
-
-            <select
-              value={strategy}
-              onChange={(e) =>
-                setStrategy(
-                  e.target.value
-                )
-              }
-              style={{
-                width: '100%',
-                marginTop: '8px',
-                padding: '14px',
-                borderRadius:
-                  '14px',
-                border:
-                  '1px solid #ddd',
-              }}
-            >
-              <option value="aggressive">
-                Aggressive Payoff
-              </option>
-
-              <option value="balanced">
-                Balanced
-              </option>
-
-              <option value="savings-first">
-                Savings First
-              </option>
-            </select>
-          </div>
-
-          {/* DEBT STRATEGY */}
-
-          <div
-            style={{
-              marginTop: '20px',
-            }}
-          >
-            <label>
-              Debt Payoff Strategy
-            </label>
-
-            <select
-              value={debtStrategy}
-              onChange={(e) =>
-                setDebtStrategy(
-                  e.target.value
-                )
-              }
-              style={{
-                width: '100%',
-                marginTop: '8px',
-                padding: '14px',
-                borderRadius:
-                  '14px',
-                border:
-                  '1px solid #ddd',
-              }}
-            >
-              <option value="snowball">
-                Snowball — Smallest Balance First
-              </option>
-
-              <option value="avalanche">
-                Avalanche — Highest Interest First
-              </option>
-
-              <option value="hybrid">
-                Hybrid Strategy
-              </option>
-            </select>
-          </div>
-
-          {/* EXPENSES */}
-
-          <div
-            style={{
-              marginTop: '30px',
-            }}
-          >
-            <h3>
-              Monthly Expenses
-            </h3>
-
-            {expenses.map(
-              (
-                expense,
-                idx
-              ) => (
-                <div
-                  key={idx}
-                  style={{
-                    display:
-                      'flex',
-                    gap: '10px',
-                    marginTop:
-                      '12px',
-                  }}
-                >
-                  <input
-                    placeholder="Expense Name"
-                    value={
-                      expense.name
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...expenses,
-                        ];
-
-                      updated[
-                        idx
-                      ].name =
-                        e.target.value;
-
-                      setExpenses(
-                        updated
-                      );
-                    }}
-                    style={{
-                      flex: 1,
-                      padding:
-                        '12px',
-                      borderRadius:
-                        '12px',
-                      border:
-                        '1px solid #ddd',
-                    }}
-                  />
-
-                  <input
-                    type="number"
-                    placeholder="Amount"
-                    value={
-                      expense.amount
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...expenses,
-                        ];
-
-                      updated[
-                        idx
-                      ].amount =
-                        e.target.value;
-
-                      setExpenses(
-                        updated
-                      );
-                    }}
-                    style={{
-                      width:
-                        '140px',
-                      padding:
-                        '12px',
-                      borderRadius:
-                        '12px',
-                      border:
-                        '1px solid #ddd',
-                    }}
-                  />
-                </div>
-              )
-            )}
-
-            <button
-              onClick={() =>
-                setExpenses([
-                  ...expenses,
-                  {
-                    name: '',
-                    amount:
-                      '',
-                  },
-                ])
-              }
+            <div
               style={{
                 marginTop:
-                  '14px',
+                  '20px',
+              }}
+            >
+              <label>
+                Financial
+                Strategy
+              </label>
+
+              <select
+                value={strategy}
+                onChange={(e) =>
+                  setStrategy(
+                    e.target.value
+                  )
+                }
+                style={{
+                  width:
+                    '100%',
+                  marginTop:
+                    '8px',
+                  padding:
+                    '14px',
+                  borderRadius:
+                    '14px',
+                  border:
+                    '1px solid #ddd',
+                }}
+              >
+                <option value="aggressive">
+                  Aggressive
+                </option>
+
+                <option value="balanced">
+                  Balanced
+                </option>
+
+                <option value="savings-first">
+                  Savings First
+                </option>
+              </select>
+            </div>
+
+            <div
+              style={{
+                marginTop:
+                  '20px',
+              }}
+            >
+              <label>
+                Debt Strategy
+              </label>
+
+              <select
+                value={
+                  debtStrategy
+                }
+                onChange={(e) =>
+                  setDebtStrategy(
+                    e.target.value
+                  )
+                }
+                style={{
+                  width:
+                    '100%',
+                  marginTop:
+                    '8px',
+                  padding:
+                    '14px',
+                  borderRadius:
+                    '14px',
+                  border:
+                    '1px solid #ddd',
+                }}
+              >
+                <option value="snowball">
+                  Snowball
+                </option>
+
+                <option value="avalanche">
+                  Avalanche
+                </option>
+
+                <option value="hybrid">
+                  Hybrid
+                </option>
+              </select>
+            </div>
+
+            {/* EXPENSES */}
+
+            <div
+              style={{
+                marginTop:
+                  '30px',
+              }}
+            >
+              <h3>
+                Monthly Expenses
+              </h3>
+
+              {expenses.map(
+                (
+                  expense,
+                  idx
+                ) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display:
+                        'flex',
+                      gap: '10px',
+                      marginTop:
+                        '12px',
+                    }}
+                  >
+                    <input
+                      placeholder="Expense"
+                      value={
+                        expense.name
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        const updated =
+                          [
+                            ...expenses,
+                          ];
+
+                        updated[
+                          idx
+                        ].name =
+                          e.target.value;
+
+                        setExpenses(
+                          updated
+                        );
+                      }}
+                      style={{
+                        flex: 1,
+                        padding:
+                          '12px',
+                      }}
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Amount"
+                      value={
+                        expense.amount
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        const updated =
+                          [
+                            ...expenses,
+                          ];
+
+                        updated[
+                          idx
+                        ].amount =
+                          e.target.value;
+
+                        setExpenses(
+                          updated
+                        );
+                      }}
+                      style={{
+                        width:
+                          '140px',
+                        padding:
+                          '12px',
+                      }}
+                    />
+                  </div>
+                )
+              )}
+
+              <button
+                onClick={() =>
+                  setExpenses([
+                    ...expenses,
+                    {
+                      name: '',
+                      amount:
+                        '',
+                    },
+                  ])
+                }
+                style={{
+                  marginTop:
+                    '14px',
+                }}
+              >
+                + Add Expense
+              </button>
+            </div>
+
+            {/* DEBTS */}
+
+            <div
+              style={{
+                marginTop:
+                  '30px',
+              }}
+            >
+              <h3>Debts</h3>
+
+              {debts.map(
+                (
+                  debt,
+                  idx
+                ) => (
+                  <div
+                    key={
+                      debt.id
+                    }
+                    style={{
+                      display:
+                        'grid',
+                      gridTemplateColumns:
+                        '1fr 1fr 1fr',
+                      gap: '10px',
+                      marginTop:
+                        '12px',
+                    }}
+                  >
+                    <input
+                      placeholder="Debt Name"
+                      value={
+                        debt.name
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        const updated =
+                          [
+                            ...debts,
+                          ];
+
+                        updated[
+                          idx
+                        ].name =
+                          e.target.value;
+
+                        setDebts(
+                          updated
+                        );
+                      }}
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Balance"
+                      value={
+                        debt.balance
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        const updated =
+                          [
+                            ...debts,
+                          ];
+
+                        updated[
+                          idx
+                        ].balance =
+                          e.target.value;
+
+                        setDebts(
+                          updated
+                        );
+                      }}
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Interest %"
+                      value={
+                        debt.interestRate
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        const updated =
+                          [
+                            ...debts,
+                          ];
+
+                        updated[
+                          idx
+                        ].interestRate =
+                          e.target.value;
+
+                        setDebts(
+                          updated
+                        );
+                      }}
+                    />
+                  </div>
+                )
+              )}
+
+              <button
+                onClick={() =>
+                  setDebts([
+                    ...debts,
+                    {
+                      id: Date.now(),
+                      name: '',
+                      balance:
+                        '',
+                      interestRate:
+                        '',
+                    },
+                  ])
+                }
+                style={{
+                  marginTop:
+                    '14px',
+                }}
+              >
+                + Add Debt
+              </button>
+            </div>
+
+            {/* GENERATE */}
+
+            <button
+              onClick={
+                generateFinancialRoadmap
+              }
+              style={{
+                width: '100%',
+                marginTop:
+                  '36px',
                 background:
                   'black',
                 color: 'white',
                 border: 'none',
                 padding:
-                  '12px 16px',
+                  '18px',
                 borderRadius:
-                  '12px',
+                  '16px',
+                fontWeight:
+                  '700',
+                fontSize:
+                  '16px',
               }}
             >
-              + Add Expense
+              Generate Plan
             </button>
           </div>
+        )}
 
-          {/* DEBTS */}
+        {/* DASHBOARD SCREEN */}
 
-          <div
-            style={{
-              marginTop: '30px',
-            }}
-          >
-            <h3>Debts</h3>
+        {currentScreen ===
+          'dashboard' &&
+          generatedPlan && (
+            <>
+              <div
+                style={{
+                  background:
+                    'white',
+                  borderRadius:
+                    '28px',
+                  padding:
+                    '28px',
+                  marginBottom:
+                    '20px',
+                }}
+              >
+                <h1>
+                  Master Dashboard
+                </h1>
 
-            {debts.map(
-              (
-                debt,
-                idx
-              ) => (
+                <p>
+                  Execution
+                  Progress:{' '}
+                  {progress}%
+                </p>
+
                 <div
-                  key={
-                    debt.id
-                  }
+                  style={{
+                    height:
+                      '14px',
+                    background:
+                      '#e5e7eb',
+                    borderRadius:
+                      '999px',
+                    overflow:
+                      'hidden',
+                    marginTop:
+                      '10px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${progress}%`,
+                      background:
+                        'black',
+                      height:
+                        '14px',
+                    }}
+                  />
+                </div>
+
+                <div
                   style={{
                     display:
                       'grid',
                     gridTemplateColumns:
-                      '1fr 1fr 1fr 1fr 1fr',
-                    gap: '10px',
+                      '1fr 1fr',
+                    gap: '12px',
                     marginTop:
-                      '12px',
+                      '24px',
                   }}
                 >
-                  <input
-                    placeholder="Debt Name"
-                    value={
-                      debt.name
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...debts,
-                        ];
-
-                      updated[
-                        idx
-                      ].name =
-                        e.target.value;
-
-                      setDebts(
-                        updated
-                      );
-                    }}
+                  <DashboardCard
+                    label="Income"
+                    value={formatCurrency(
+                      generatedPlan.monthlyIncome
+                    )}
                   />
 
-                  <select
-                    value={
-                      debt.type
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...debts,
-                        ];
-
-                      updated[
-                        idx
-                      ].type =
-                        e.target.value;
-
-                      setDebts(
-                        updated
-                      );
-                    }}
-                  >
-                    <option value="personal">
-                      Personal
-                    </option>
-
-                    <option value="credit-card">
-                      Credit Card
-                    </option>
-
-                    <option value="loan">
-                      Loan
-                    </option>
-
-                    <option value="store">
-                      Store Account
-                    </option>
-                  </select>
-
-                  <input
-                    type="number"
-                    placeholder="Balance"
-                    value={
-                      debt.balance
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...debts,
-                        ];
-
-                      updated[
-                        idx
-                      ].balance =
-                        e.target.value;
-
-                      setDebts(
-                        updated
-                      );
-                    }}
+                  <DashboardCard
+                    label="Expenses"
+                    value={formatCurrency(
+                      generatedPlan.totalExpenses
+                    )}
                   />
 
-                  <input
-                    type="number"
-                    placeholder="Interest %"
-                    value={
-                      debt.interestRate
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...debts,
-                        ];
-
-                      updated[
-                        idx
-                      ].interestRate =
-                        e.target.value;
-
-                      setDebts(
-                        updated
-                      );
-                    }}
+                  <DashboardCard
+                    label="Debt"
+                    value={formatCurrency(
+                      generatedPlan.totalDebt
+                    )}
                   />
 
-                  <input
-                    type="number"
-                    placeholder="Target Months"
-                    value={
-                      debt.targetMonths
-                    }
-                    onChange={(
-                      e
-                    ) => {
-                      const updated =
-                        [
-                          ...debts,
-                        ];
-
-                      updated[
-                        idx
-                      ].targetMonths =
-                        e.target.value;
-
-                      setDebts(
-                        updated
-                      );
-                    }}
+                  <DashboardCard
+                    label="Free Cash"
+                    value={formatCurrency(
+                      generatedPlan.freeCash
+                    )}
                   />
                 </div>
-              )
-            )}
+              </div>
 
-            <button
-              onClick={() =>
-                setDebts([
-                  ...debts,
-                  {
-                    id: Date.now(),
-                    name: '',
-                    type:
-                      'personal',
-                    balance:
-                      '',
-                    interestRate:
-                      '',
-                    targetMonths:
-                      '3',
-                    minimumPayment:
-                      '',
-                  },
-                ])
-              }
-              style={{
-                marginTop:
-                  '14px',
-                background:
-                  'black',
-                color: 'white',
-                border: 'none',
-                padding:
-                  '12px 16px',
-                borderRadius:
-                  '12px',
-              }}
-            >
-              + Add Debt
-            </button>
-          </div>
-
-          {/* GENERATE */}
-
-          <button
-            onClick={
-              generateFinancialRoadmap
-            }
-            style={{
-              width: '100%',
-              marginTop: '36px',
-              background: 'black',
-              color: 'white',
-              border: 'none',
-              padding: '18px',
-              borderRadius:
-                '16px',
-              fontWeight: '700',
-              fontSize: '16px',
-            }}
-          >
-            Generate Financial Roadmap
-          </button>
-        </div>
-
-        {/* DASHBOARD */}
-
-        {generatedPlan && (
-          <>
-            <div
-              style={{
-                background:
-                  'white',
-                borderRadius:
-                  '28px',
-                padding: '28px',
-                marginBottom:
-                  '20px',
-                boxShadow:
-                  '0 10px 30px rgba(0,0,0,0.08)',
-              }}
-            >
-              <h2>
-                Financial Dashboard
-              </h2>
+              {/* MONTH NAVIGATION */}
 
               <div
                 style={{
                   background:
-                    '#f9fafb',
-                  padding:
-                    '18px',
+                    'white',
                   borderRadius:
-                    '16px',
-                  marginTop:
+                    '28px',
+                  padding:
+                    '28px',
+                  marginBottom:
                     '20px',
                 }}
               >
-                <h3>
-                  Active Debt Strategy
-                </h3>
+                <h2>
+                  Monthly
+                  Execution Plan
+                </h2>
 
-                <p>
-                  {debtStrategy ===
-                    'snowball' &&
-                    'Snowball Strategy: prioritizing smallest balances first for fast wins and momentum.'}
-
-                  {debtStrategy ===
-                    'avalanche' &&
-                    'Avalanche Strategy: prioritizing highest interest debts first to minimize total interest costs.'}
-
-                  {debtStrategy ===
-                    'hybrid' &&
-                    'Hybrid Strategy: balancing emotional wins with financial optimization.'}
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display:
-                    'grid',
-                  gridTemplateColumns:
-                    '1fr 1fr',
-                  gap: '14px',
-                  marginTop:
-                    '20px',
-                }}
-              >
-                {[
-                  {
-                    label:
-                      'Income',
-                    value:
-                      generatedPlan.monthlyIncome,
-                    emoji:
-                      '💰',
-                  },
-                  {
-                    label:
-                      'Expenses',
-                    value:
-                      generatedPlan.totalExpenses,
-                    emoji:
-                      '📉',
-                  },
-                  {
-                    label:
-                      'Debt',
-                    value:
-                      generatedPlan.totalDebt,
-                    emoji:
-                      '💳',
-                  },
-                  {
-                    label:
-                      'Free Cash',
-                    value:
-                      generatedPlan.freeCash,
-                    emoji:
-                      '🚀',
-                  },
-                ].map(
+                {generatedPlan.months.map(
                   (
-                    card,
+                    month,
                     idx
                   ) => (
-                    <div
+                    <button
                       key={idx}
+                      onClick={() => {
+                        setSelectedMonth(
+                          month
+                        );
+
+                        setCurrentScreen(
+                          'month'
+                        );
+                      }}
                       style={{
-                        background:
-                          '#f9fafb',
+                        width:
+                          '100%',
+                        marginTop:
+                          '14px',
                         padding:
-                          '20px',
+                          '18px',
                         borderRadius:
                           '18px',
+                        border:
+                          'none',
+                        background:
+                          '#f9fafb',
+                        textAlign:
+                          'left',
                       }}
                     >
-                      <div
-                        style={{
-                          fontSize:
-                            '30px',
-                        }}
-                      >
+                      <strong>
                         {
-                          card.emoji
+                          month.title
                         }
-                      </div>
+                      </strong>
 
-                      <p
-                        style={{
-                          color:
-                            '#666',
-                        }}
-                      >
-                        {
-                          card.label
-                        }
-                      </p>
-
-                      <h2>
-                        {formatCurrency(
-                          card.value
-                        )}
-                      </h2>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-
-            {/* MONTHS */}
-
-            {generatedPlan.months.map(
-              (
-                month,
-                monthIndex
-              ) => (
-                <div
-                  key={
-                    monthIndex
-                  }
-                  style={{
-                    background:
-                      'white',
-                    borderRadius:
-                      '28px',
-                    padding:
-                      '28px',
-                    marginBottom:
-                      '20px',
-                    boxShadow:
-                      '0 10px 30px rgba(0,0,0,0.08)',
-                  }}
-                >
-                  <h2>
-                    {
-                      month.title
-                    }
-                  </h2>
-
-                  {!month.wealthPhase && (
-                    <div
-                      style={{
-                        display:
-                          'grid',
-                        gridTemplateColumns:
-                          '1fr 1fr',
-                        gap: '12px',
-                        marginTop:
-                          '20px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          background:
-                            '#f9fafb',
-                          padding:
-                            '18px',
-                          borderRadius:
-                            '16px',
-                        }}
-                      >
-                        <p>
-                          Debt
-                          Payments
-                        </p>
-
-                        <h3>
-                          {formatCurrency(
-                            month.debtPayment
-                          )}
-                        </h3>
-                      </div>
-
-                      <div
-                        style={{
-                          background:
-                            '#f9fafb',
-                          padding:
-                            '18px',
-                          borderRadius:
-                            '16px',
-                        }}
-                      >
-                        <p>
-                          Emergency
-                          Fund
-                        </p>
-
-                        <h3>
-                          {formatCurrency(
-                            month.emergencyFund
-                          )}
-                        </h3>
-                      </div>
-
-                      <div
-                        style={{
-                          background:
-                            '#f9fafb',
-                          padding:
-                            '18px',
-                          borderRadius:
-                            '16px',
-                        }}
-                      >
+                      {!month
+                        .wealthPhase && (
                         <p>
                           Remaining
-                          Debt
-                        </p>
-
-                        <h3>
+                          Debt:{' '}
                           {formatCurrency(
                             month.remainingDebt
                           )}
-                        </h3>
-                      </div>
-
-                      <div
-                        style={{
-                          background:
-                            '#f9fafb',
-                          padding:
-                            '18px',
-                          borderRadius:
-                            '16px',
-                        }}
-                      >
-                        <p>
-                          Savings
                         </p>
+                      )}
+                    </button>
+                  )
+                )}
+              </div>
 
-                        <h3>
-                          {formatCurrency(
-                            month.savingsContribution
-                          )}
-                        </h3>
-                      </div>
-                    </div>
-                  )}
+              {/* WEALTH PHASE */}
 
-                  {/* TASKS */}
+              <div
+                style={{
+                  background:
+                    'white',
+                  borderRadius:
+                    '28px',
+                  padding:
+                    '28px',
+                }}
+              >
+                <h2>
+                  Wealth Phase
+                  Forecast
+                </h2>
 
-                  <div
-                    style={{
-                      marginTop:
-                        '24px',
-                    }}
-                  >
-                    <h3>
-                      Execution
-                      Checklist
-                    </h3>
-
-                    {month.tasks.map(
-                      (
-                        task,
-                        taskIndex
-                      ) => {
-                        const itemKey = `${month.title}-${taskIndex}`;
-
-                        return (
-                          <div
-                            key={
-                              taskIndex
-                            }
-                            style={{
-                              background:
-                                checked[
-                                  itemKey
-                                ]
-                                  ? '#dcfce7'
-                                  : '#f9fafb',
-                              padding:
-                                '16px',
-                              borderRadius:
-                                '16px',
-                              marginTop:
-                                '12px',
-                            }}
-                          >
-                            <label
-                              style={{
-                                display:
-                                  'flex',
-                                gap: '12px',
-                                alignItems:
-                                  'center',
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={
-                                  !!checked[
-                                    itemKey
-                                  ]
-                                }
-                                disabled={
-                                  !proofs[
-                                    itemKey
-                                  ]
-                                }
-                                onChange={() =>
-                                  toggleItem(
-                                    itemKey
-                                  )
-                                }
-                              />
-
-                              <span
-                                style={{
-                                  flex: 1,
-                                  textDecoration:
-                                    checked[
-                                      itemKey
-                                    ]
-                                      ? 'line-through'
-                                      : 'none',
-                                }}
-                              >
-                                {
-                                  task.title
-                                }
-
-                                {task.amount >
-                                  0 &&
-                                  ` — ${formatCurrency(
-                                    task.amount
-                                  )}`}
-                              </span>
-                            </label>
-
-                            <div
-                              style={{
-                                marginTop:
-                                  '12px',
-                              }}
-                            >
-                              <input
-                                ref={(
-                                  el
-                                ) =>
-                                  (fileInputRefs.current[
-                                    itemKey
-                                  ] = el)
-                                }
-                                type="file"
-                                accept="image/*"
-                                style={{
-                                  display:
-                                    'none',
-                                }}
-                                onChange={(
-                                  e
-                                ) =>
-                                  handleProofUpload(
-                                    itemKey,
-                                    e
-                                      .target
-                                      .files?.[0]
-                                  )
-                                }
-                              />
-
-                              <button
-                                onClick={() =>
-                                  fileInputRefs.current[
-                                    itemKey
-                                  ]?.click()
-                                }
-                                style={{
-                                  background:
-                                    'black',
-                                  color:
-                                    'white',
-                                  border:
-                                    'none',
-                                  padding:
-                                    '10px 14px',
-                                  borderRadius:
-                                    '12px',
-                                }}
-                              >
-                                {proofs[
-                                  itemKey
-                                ]
-                                  ? '✅ Proof Uploaded'
-                                  : '📸 Upload Proof'}
-                              </button>
-                            </div>
-
-                            {proofs[
-                              itemKey
-                            ] && (
-                              <img
-                                src={
-                                  proofs[
-                                    itemKey
-                                  ]
-                                }
-                                alt="Proof"
-                                style={{
-                                  width:
-                                    '100%',
-                                  marginTop:
-                                    '12px',
-                                  borderRadius:
-                                    '16px',
-                                }}
-                              />
-                            )}
-                          </div>
-                        );
-                      }
+                <div
+                  style={{
+                    display:
+                      'grid',
+                    gridTemplateColumns:
+                      '1fr 1fr',
+                    gap: '12px',
+                    marginTop:
+                      '20px',
+                  }}
+                >
+                  <DashboardCard
+                    label="Projected Emergency Fund"
+                    value={formatCurrency(
+                      generatedPlan.projectedEmergency
                     )}
-                  </div>
+                  />
+
+                  <DashboardCard
+                    label="Projected Investments"
+                    value={formatCurrency(
+                      generatedPlan.projectedInvestments
+                    )}
+                  />
+
+                  <DashboardCard
+                    label="Projected House Deposit"
+                    value={formatCurrency(
+                      generatedPlan.projectedHouseDeposit
+                    )}
+                  />
+
+                  <DashboardCard
+                    label="Projected Net Worth"
+                    value={formatCurrency(
+                      generatedPlan.projectedNetWorth
+                    )}
+                  />
+
+                  <DashboardCard
+                    label="Savings Rate"
+                    value={`${generatedPlan.savingsRate}%`}
+                  />
+
+                  <DashboardCard
+                    label="Wealth Score"
+                    value={`${generatedPlan.wealthScore}/100`}
+                  />
                 </div>
-              )
-            )}
-          </>
-        )}
+              </div>
+            </>
+          )}
+
+        {/* MONTH SCREEN */}
+
+        {currentScreen ===
+          'month' &&
+          renderMonthScreen()}
       </div>
     </div>
   );
