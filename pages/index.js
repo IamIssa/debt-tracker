@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export default function FinancialFreedomOS() {
   const STORAGE_KEY =
-    'financial-freedom-os-v4';
+    'financial-freedom-os-v5';
 
   /* =========================
      NAVIGATION
@@ -10,9 +10,6 @@ export default function FinancialFreedomOS() {
 
   const [activeTab, setActiveTab] =
     useState('setup');
-
-  const [selectedMonth, setSelectedMonth] =
-    useState(null);
 
   /* =========================
      USER INPUTS
@@ -52,7 +49,7 @@ export default function FinancialFreedomOS() {
     useState([
       {
         id: Date.now(),
-        name: 'Graduation Support',
+        name: 'Emergency Fund',
         amount: '500',
       },
     ]);
@@ -92,9 +89,9 @@ export default function FinancialFreedomOS() {
   ========================= */
 
   useEffect(() => {
-    const savedPlan =
+    const saved =
       localStorage.getItem(
-        `${STORAGE_KEY}-plan`
+        STORAGE_KEY
       );
 
     const savedChecked =
@@ -107,9 +104,9 @@ export default function FinancialFreedomOS() {
         `${STORAGE_KEY}-proofs`
       );
 
-    if (savedPlan) {
+    if (saved) {
       const parsed =
-        JSON.parse(savedPlan);
+        JSON.parse(saved);
 
       setIncome(parsed.income);
       setExpenses(parsed.expenses);
@@ -120,7 +117,7 @@ export default function FinancialFreedomOS() {
         parsed.debtStrategy
       );
       setGeneratedPlan(
-        parsed.plan
+        parsed.generatedPlan
       );
 
       setActiveTab(
@@ -185,11 +182,15 @@ export default function FinancialFreedomOS() {
   };
 
   /* =========================
-     DEBT STRATEGY
+     DEBT SORTING
   ========================= */
 
-  const sortDebts = (debtsList) => {
-    const sorted = [...debtsList];
+  const sortDebts = (
+    debtsList
+  ) => {
+    const sorted = [
+      ...debtsList,
+    ];
 
     if (
       debtStrategy === 'snowball'
@@ -227,7 +228,7 @@ export default function FinancialFreedomOS() {
   };
 
   /* =========================
-     ENGINE
+     PLAN ENGINE
   ========================= */
 
   const generatePlan = () => {
@@ -332,6 +333,8 @@ export default function FinancialFreedomOS() {
 
     let months = [];
 
+    let wealthMonths = [];
+
     let activeDebts = [
       ...cleanDebts,
     ];
@@ -345,6 +348,10 @@ export default function FinancialFreedomOS() {
     let rolloverMoney = 0;
 
     let currentMonth = 1;
+
+    /* =========================
+       DEBT PHASE
+    ========================= */
 
     while (
       activeDebts.some(
@@ -400,11 +407,9 @@ export default function FinancialFreedomOS() {
             debtAllocation
         ) + rolloverMoney;
 
-      let totalPaid =
-        0;
+      let totalDebtPaid = 0;
 
-      let freedPayments =
-        0;
+      let freedPayments = 0;
 
       activeDebts =
         activeDebts
@@ -432,9 +437,9 @@ export default function FinancialFreedomOS() {
                 debt.remainingBalance,
                 Math.max(
                   debt.minimumPayment,
-                  targetPayment,
-                  debtBudget
-                )
+                  targetPayment
+                ),
+                debtBudget
               );
 
             debt.remainingBalance -=
@@ -442,7 +447,7 @@ export default function FinancialFreedomOS() {
 
             debtBudget -= payment;
 
-            totalPaid +=
+            totalDebtPaid +=
               payment;
 
             tasks.push({
@@ -524,12 +529,19 @@ export default function FinancialFreedomOS() {
         type: 'execution',
       });
 
+      tasks.push({
+        title:
+          'Avoid unnecessary spending',
+        amount: 0,
+        type: 'discipline',
+      });
+
       months.push({
         title: `Month ${currentMonth}`,
         monthNumber:
           currentMonth,
         debtPaid:
-          totalPaid,
+          totalDebtPaid,
         emergencyFund,
         remainingDebt,
         netWorth,
@@ -543,14 +555,12 @@ export default function FinancialFreedomOS() {
        WEALTH PHASE
     ========================= */
 
-    let wealthMonths = [];
-
     for (
       let i = 1;
       i <= 24;
       i++
     ) {
-      const efContribution =
+      const emergencyContribution =
         Math.round(
           freeCash * 0.3
         );
@@ -566,7 +576,7 @@ export default function FinancialFreedomOS() {
         );
 
       emergencyFund +=
-        efContribution;
+        emergencyContribution;
 
       investments +=
         investmentContribution;
@@ -574,7 +584,7 @@ export default function FinancialFreedomOS() {
       houseFund +=
         houseContribution;
 
-      const netWorth =
+      const projectedNetWorth =
         emergencyFund +
         investments +
         houseFund;
@@ -584,13 +594,14 @@ export default function FinancialFreedomOS() {
         emergencyFund,
         investments,
         houseFund,
-        netWorth,
+        netWorth:
+          projectedNetWorth,
         tasks: [
           {
             title:
               'Transfer to Emergency Fund',
             amount:
-              efContribution,
+              emergencyContribution,
           },
           {
             title:
@@ -612,15 +623,15 @@ export default function FinancialFreedomOS() {
        INSIGHTS
     ========================= */
 
-    const recommendations =
-      [];
-
     const savingsRate =
       Math.round(
         (freeCash /
           monthlyIncome) *
           100
       );
+
+    const recommendations =
+      [];
 
     if (
       savingsRate >= 40
@@ -634,12 +645,21 @@ export default function FinancialFreedomOS() {
       savingsRate < 20
     ) {
       recommendations.push(
-        'Savings rate is low.'
+        'Reduce expenses to improve savings rate.'
       );
     }
 
     recommendations.push(
       `Projected debt-free in ${months.length} months.`
+    );
+
+    recommendations.push(
+      `Projected net worth after wealth phase: ${formatCurrency(
+        wealthMonths[
+          wealthMonths.length -
+            1
+        ]?.netWorth
+      )}`
     );
 
     const finalPlan = {
@@ -663,7 +683,7 @@ export default function FinancialFreedomOS() {
     );
 
     localStorage.setItem(
-      `${STORAGE_KEY}-plan`,
+      STORAGE_KEY,
       JSON.stringify({
         income,
         expenses,
@@ -671,7 +691,8 @@ export default function FinancialFreedomOS() {
         goals,
         strategy,
         debtStrategy,
-        plan: finalPlan,
+        generatedPlan:
+          finalPlan,
       })
     );
 
@@ -721,6 +742,7 @@ export default function FinancialFreedomOS() {
       }}
     >
       <p>{label}</p>
+
       <h2>{value}</h2>
     </div>
   );
@@ -739,17 +761,17 @@ export default function FinancialFreedomOS() {
           'Arial, sans-serif',
       }}
     >
-      <div
-        style={{
-          maxWidth: '920px',
-          margin: '0 auto',
-          padding: '20px',
-        }}
-      >
-        {/* SETUP */}
+      {/* SETUP */}
 
-        {activeTab ===
-          'setup' && (
+      {activeTab ===
+        'setup' && (
+        <div
+          style={{
+            maxWidth: '920px',
+            margin: '0 auto',
+            padding: '20px',
+          }}
+        >
           <div
             style={{
               background:
@@ -762,8 +784,6 @@ export default function FinancialFreedomOS() {
             <h1>
               Financial Freedom OS
             </h1>
-
-            {/* INCOME */}
 
             <input
               type="number"
@@ -1290,123 +1310,588 @@ export default function FinancialFreedomOS() {
                   '18px',
                 borderRadius:
                   '18px',
-                fontSize:
-                  '16px',
                 fontWeight:
                   '700',
+                fontSize:
+                  '16px',
               }}
             >
-              Generate Financial Plan
+              Generate Plan
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* DASHBOARD */}
+      {/* DASHBOARD */}
 
-        {activeTab ===
-          'dashboard' &&
-          generatedPlan && (
-            <>
+      {activeTab ===
+        'dashboard' &&
+        generatedPlan && (
+          <div
+            style={{
+              maxWidth:
+                '920px',
+              margin:
+                '0 auto',
+              padding:
+                '20px',
+            }}
+          >
+            <div
+              style={{
+                background:
+                  'white',
+                borderRadius:
+                  '28px',
+                padding:
+                  '28px',
+              }}
+            >
+              <h1>
+                Dashboard
+              </h1>
+
+              <p>
+                Progress:{' '}
+                {progress}%
+              </p>
+
               <div
                 style={{
+                  height:
+                    '14px',
                   background:
-                    'white',
+                    '#e5e7eb',
                   borderRadius:
-                    '28px',
-                  padding:
-                    '28px',
+                    '999px',
+                  overflow:
+                    'hidden',
+                  marginTop:
+                    '12px',
                 }}
               >
-                <h1>
-                  Master Dashboard
-                </h1>
-
-                <p>
-                  Progress:{' '}
-                  {progress}%
-                </p>
-
                 <div
                   style={{
-                    display:
-                      'grid',
-                    gridTemplateColumns:
-                      '1fr 1fr',
-                    gap: '12px',
-                    marginTop:
-                      '24px',
+                    width: `${progress}%`,
+                    background:
+                      'black',
+                    height:
+                      '14px',
                   }}
-                >
-                  <Card
-                    label="Income"
-                    value={formatCurrency(
-                      generatedPlan.monthlyIncome
-                    )}
-                  />
-
-                  <Card
-                    label="Debt"
-                    value={formatCurrency(
-                      generatedPlan.totalDebt
-                    )}
-                  />
-
-                  <Card
-                    label="Free Cash"
-                    value={formatCurrency(
-                      generatedPlan.freeCash
-                    )}
-                  />
-
-                  <Card
-                    label="Savings Rate"
-                    value={`${generatedPlan.savingsRate}%`}
-                  />
-                </div>
+                />
               </div>
 
               <div
                 style={{
-                  background:
-                    'white',
-                  borderRadius:
-                    '28px',
-                  padding:
-                    '28px',
+                  display:
+                    'grid',
+                  gridTemplateColumns:
+                    '1fr 1fr',
+                  gap: '12px',
+                  marginTop:
+                    '24px',
+                }}
+              >
+                <Card
+                  label="Income"
+                  value={formatCurrency(
+                    generatedPlan.monthlyIncome
+                  )}
+                />
+
+                <Card
+                  label="Debt"
+                  value={formatCurrency(
+                    generatedPlan.totalDebt
+                  )}
+                />
+
+                <Card
+                  label="Free Cash"
+                  value={formatCurrency(
+                    generatedPlan.freeCash
+                  )}
+                />
+
+                <Card
+                  label="Savings Rate"
+                  value={`${generatedPlan.savingsRate}%`}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                background:
+                  'white',
+                borderRadius:
+                  '28px',
+                padding:
+                  '28px',
+                marginTop:
+                  '20px',
+              }}
+            >
+              <h2>
+                Smart Insights
+              </h2>
+
+              {generatedPlan.recommendations.map(
+                (
+                  rec,
+                  idx
+                ) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background:
+                        '#f9fafb',
+                      padding:
+                        '14px',
+                      borderRadius:
+                        '14px',
+                      marginTop:
+                        '12px',
+                    }}
+                  >
+                    {rec}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* MONTHS TAB */}
+
+      {activeTab ===
+        'months' &&
+        generatedPlan && (
+          <div
+            style={{
+              maxWidth:
+                '920px',
+              margin:
+                '0 auto',
+              padding:
+                '20px',
+            }}
+          >
+            <div
+              style={{
+                background:
+                  'white',
+                borderRadius:
+                  '28px',
+                padding:
+                  '28px',
+              }}
+            >
+              <h1>
+                Monthly Execution
+              </h1>
+
+              {generatedPlan.months.map(
+                (
+                  month,
+                  monthIndex
+                ) => (
+                  <div
+                    key={
+                      monthIndex
+                    }
+                    style={{
+                      background:
+                        '#f9fafb',
+                      borderRadius:
+                        '20px',
+                      padding:
+                        '20px',
+                      marginTop:
+                        '20px',
+                    }}
+                  >
+                    <h2>
+                      {
+                        month.title
+                      }
+                    </h2>
+
+                    <div
+                      style={{
+                        display:
+                          'grid',
+                        gridTemplateColumns:
+                          '1fr 1fr',
+                        gap: '12px',
+                        marginTop:
+                          '16px',
+                      }}
+                    >
+                      <Card
+                        label="Debt Paid"
+                        value={formatCurrency(
+                          month.debtPaid
+                        )}
+                      />
+
+                      <Card
+                        label="Remaining Debt"
+                        value={formatCurrency(
+                          month.remainingDebt
+                        )}
+                      />
+
+                      <Card
+                        label="Emergency Fund"
+                        value={formatCurrency(
+                          month.emergencyFund
+                        )}
+                      />
+
+                      <Card
+                        label="Net Worth"
+                        value={formatCurrency(
+                          month.netWorth
+                        )}
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop:
+                          '20px',
+                      }}
+                    >
+                      {month.tasks.map(
+                        (
+                          task,
+                          taskIndex
+                        ) => {
+                          const key = `${month.title}-${taskIndex}`;
+
+                          return (
+                            <div
+                              key={
+                                taskIndex
+                              }
+                              style={{
+                                background:
+                                  checked[
+                                    key
+                                  ]
+                                    ? '#dcfce7'
+                                    : 'white',
+                                padding:
+                                  '14px',
+                                borderRadius:
+                                  '14px',
+                                marginTop:
+                                  '12px',
+                              }}
+                            >
+                              <label
+                                style={{
+                                  display:
+                                    'flex',
+                                  gap: '12px',
+                                  alignItems:
+                                    'center',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    !!checked[
+                                      key
+                                    ]
+                                  }
+                                  disabled={
+                                    !proofs[
+                                      key
+                                    ]
+                                  }
+                                  onChange={() =>
+                                    toggleItem(
+                                      key
+                                    )
+                                  }
+                                />
+
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    textDecoration:
+                                      checked[
+                                        key
+                                      ]
+                                        ? 'line-through'
+                                        : 'none',
+                                  }}
+                                >
+                                  {
+                                    task.title
+                                  }
+
+                                  {task.amount >
+                                    0 &&
+                                    ` — ${formatCurrency(
+                                      task.amount
+                                    )}`}
+                                </span>
+                              </label>
+
+                              <div
+                                style={{
+                                  marginTop:
+                                    '10px',
+                                }}
+                              >
+                                <input
+                                  ref={(
+                                    el
+                                  ) =>
+                                    (fileInputRefs.current[
+                                      key
+                                    ] = el)
+                                  }
+                                  type="file"
+                                  accept="image/*"
+                                  style={{
+                                    display:
+                                      'none',
+                                  }}
+                                  onChange={(
+                                    e
+                                  ) =>
+                                    uploadProof(
+                                      key,
+                                      e
+                                        .target
+                                        .files?.[0]
+                                    )
+                                  }
+                                />
+
+                                <button
+                                  onClick={() =>
+                                    fileInputRefs.current[
+                                      key
+                                    ]?.click()
+                                  }
+                                  style={{
+                                    border:
+                                      'none',
+                                    background:
+                                      'black',
+                                    color:
+                                      'white',
+                                    padding:
+                                      '10px 14px',
+                                    borderRadius:
+                                      '12px',
+                                  }}
+                                >
+                                  {proofs[
+                                    key
+                                  ]
+                                    ? '✅ Proof Uploaded'
+                                    : '📸 Upload Proof'}
+                                </button>
+                              </div>
+
+                              {proofs[
+                                key
+                              ] && (
+                                <img
+                                  src={
+                                    proofs[
+                                      key
+                                    ]
+                                  }
+                                  alt="proof"
+                                  style={{
+                                    width:
+                                      '100%',
+                                    marginTop:
+                                      '12px',
+                                    borderRadius:
+                                      '14px',
+                                  }}
+                                />
+                              )}
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* WEALTH TAB */}
+
+      {activeTab ===
+        'wealth' &&
+        generatedPlan && (
+          <div
+            style={{
+              maxWidth:
+                '920px',
+              margin:
+                '0 auto',
+              padding:
+                '20px',
+            }}
+          >
+            <div
+              style={{
+                background:
+                  'white',
+                borderRadius:
+                  '28px',
+                padding:
+                  '28px',
+              }}
+            >
+              <h1>
+                Wealth Forecast
+              </h1>
+
+              <div
+                style={{
+                  display:
+                    'grid',
+                  gridTemplateColumns:
+                    '1fr 1fr',
+                  gap: '12px',
                   marginTop:
                     '20px',
                 }}
               >
-                <h2>
-                  Smart Insights
-                </h2>
+                <Card
+                  label="Projected Net Worth"
+                  value={formatCurrency(
+                    generatedPlan.projectedNetWorth
+                  )}
+                />
 
-                {generatedPlan.recommendations.map(
-                  (
-                    rec,
-                    idx
-                  ) => (
+                <Card
+                  label="Savings Rate"
+                  value={`${generatedPlan.savingsRate}%`}
+                />
+              </div>
+
+              {generatedPlan.wealthMonths.map(
+                (
+                  month,
+                  idx
+                ) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background:
+                        '#f9fafb',
+                      borderRadius:
+                        '20px',
+                      padding:
+                        '20px',
+                      marginTop:
+                        '20px',
+                    }}
+                  >
+                    <h2>
+                      {
+                        month.title
+                      }
+                    </h2>
+
                     <div
-                      key={idx}
                       style={{
-                        background:
-                          '#f9fafb',
-                        padding:
-                          '14px',
-                        borderRadius:
-                          '14px',
+                        display:
+                          'grid',
+                        gridTemplateColumns:
+                          '1fr 1fr',
+                        gap: '12px',
                         marginTop:
-                          '12px',
+                          '16px',
                       }}
                     >
-                      {rec}
+                      <Card
+                        label="Emergency Fund"
+                        value={formatCurrency(
+                          month.emergencyFund
+                        )}
+                      />
+
+                      <Card
+                        label="Investments"
+                        value={formatCurrency(
+                          month.investments
+                        )}
+                      />
+
+                      <Card
+                        label="House Fund"
+                        value={formatCurrency(
+                          month.houseFund
+                        )}
+                      />
+
+                      <Card
+                        label="Net Worth"
+                        value={formatCurrency(
+                          month.netWorth
+                        )}
+                      />
                     </div>
-                  )
-                )}
-              </div>
-            </>
-          )}
-      </div>
+
+                    <div
+                      style={{
+                        marginTop:
+                          '20px',
+                      }}
+                    >
+                      {month.tasks.map(
+                        (
+                          task,
+                          taskIndex
+                        ) => (
+                          <div
+                            key={
+                              taskIndex
+                            }
+                            style={{
+                              background:
+                                'white',
+                              padding:
+                                '14px',
+                              borderRadius:
+                                '14px',
+                              marginTop:
+                                '10px',
+                            }}
+                          >
+                            {
+                              task.title
+                            }{' '}
+                            —{' '}
+                            {formatCurrency(
+                              task.amount
+                            )}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
 
       {/* TABS */}
 
@@ -1424,6 +1909,8 @@ export default function FinancialFreedomOS() {
           padding: '12px',
           display: 'flex',
           gap: '10px',
+          boxShadow:
+            '0 10px 30px rgba(0,0,0,0.1)',
         }}
       >
         {[
@@ -1470,6 +1957,8 @@ export default function FinancialFreedomOS() {
                   tab
                     ? 'white'
                     : 'black',
+                fontSize:
+                  '18px',
               }}
             >
               {icon}
