@@ -4,8 +4,12 @@ export default function FinancialFreedomOS() {
   const STORAGE_KEY = 'financial-freedom-os';
 
   const [income, setIncome] = useState('');
+
   const [strategy, setStrategy] =
     useState('aggressive');
+
+  const [debtStrategy, setDebtStrategy] =
+    useState('avalanche');
 
   const [expenses, setExpenses] = useState([
     {
@@ -127,6 +131,49 @@ export default function FinancialFreedomOS() {
       : 0;
 
   /* =========================
+     DEBT STRATEGY ENGINE
+  ========================= */
+
+  const sortDebtsByStrategy = (
+    debts,
+    strategy
+  ) => {
+    const sorted = [...debts];
+
+    if (strategy === 'snowball') {
+      return sorted.sort(
+        (a, b) =>
+          a.remainingBalance -
+          b.remainingBalance
+      );
+    }
+
+    if (strategy === 'avalanche') {
+      return sorted.sort(
+        (a, b) =>
+          b.interestRate -
+          a.interestRate
+      );
+    }
+
+    if (strategy === 'hybrid') {
+      return sorted.sort((a, b) => {
+        const aScore =
+          a.interestRate * 0.7 -
+          a.remainingBalance * 0.3;
+
+        const bScore =
+          b.interestRate * 0.7 -
+          b.remainingBalance * 0.3;
+
+        return bScore - aScore;
+      });
+    }
+
+    return sorted;
+  };
+
+  /* =========================
      FINANCIAL ENGINE
   ========================= */
 
@@ -221,6 +268,16 @@ export default function FinancialFreedomOS() {
       );
 
       /* =========================
+         PRIORITIZE DEBTS
+      ========================= */
+
+      const prioritizedDebts =
+        sortDebtsByStrategy(
+          activeDebts,
+          debtStrategy
+        );
+
+      /* =========================
          MONTHLY DEBT PROCESSING
       ========================= */
 
@@ -232,7 +289,7 @@ export default function FinancialFreedomOS() {
       let remainingDebtBudget =
         availableDebtBudget;
 
-      activeDebts = activeDebts
+      activeDebts = prioritizedDebts
         .map((debt) => {
           if (
             debt.remainingBalance <= 0
@@ -522,6 +579,7 @@ export default function FinancialFreedomOS() {
       totalDebt,
       freeCash,
       emergencyTarget,
+      debtStrategy,
       months,
     });
   };
@@ -567,10 +625,10 @@ export default function FinancialFreedomOS() {
               color: '#666',
             }}
           >
-            Debt payoff, wealth
-            building, emergency
-            planning, and financial
-            execution engine.
+            Financial execution,
+            debt elimination,
+            savings growth and
+            wealth planning.
           </p>
 
           <div
@@ -672,7 +730,7 @@ export default function FinancialFreedomOS() {
             }}
           >
             <label>
-              Strategy
+              Financial Strategy
             </label>
 
             <select
@@ -702,6 +760,48 @@ export default function FinancialFreedomOS() {
 
               <option value="savings-first">
                 Savings First
+              </option>
+            </select>
+          </div>
+
+          {/* DEBT STRATEGY */}
+
+          <div
+            style={{
+              marginTop: '20px',
+            }}
+          >
+            <label>
+              Debt Payoff Strategy
+            </label>
+
+            <select
+              value={debtStrategy}
+              onChange={(e) =>
+                setDebtStrategy(
+                  e.target.value
+                )
+              }
+              style={{
+                width: '100%',
+                marginTop: '8px',
+                padding: '14px',
+                borderRadius:
+                  '14px',
+                border:
+                  '1px solid #ddd',
+              }}
+            >
+              <option value="snowball">
+                Snowball — Smallest Balance First
+              </option>
+
+              <option value="avalanche">
+                Avalanche — Highest Interest First
+              </option>
+
+              <option value="hybrid">
+                Hybrid Strategy
               </option>
             </select>
           </div>
@@ -853,7 +953,7 @@ export default function FinancialFreedomOS() {
                     display:
                       'grid',
                     gridTemplateColumns:
-                      '1fr 120px 120px 120px 120px',
+                      '1fr 1fr 1fr 1fr 1fr',
                     gap: '10px',
                     marginTop:
                       '12px',
@@ -918,7 +1018,7 @@ export default function FinancialFreedomOS() {
                     </option>
 
                     <option value="store">
-                      Store
+                      Store Account
                     </option>
                   </select>
 
@@ -949,7 +1049,7 @@ export default function FinancialFreedomOS() {
 
                   <input
                     type="number"
-                    placeholder="% Interest"
+                    placeholder="Interest %"
                     value={
                       debt.interestRate
                     }
@@ -974,7 +1074,7 @@ export default function FinancialFreedomOS() {
 
                   <input
                     type="number"
-                    placeholder="Months"
+                    placeholder="Target Months"
                     value={
                       debt.targetMonths
                     }
@@ -1080,6 +1180,37 @@ export default function FinancialFreedomOS() {
               <h2>
                 Financial Dashboard
               </h2>
+
+              <div
+                style={{
+                  background:
+                    '#f9fafb',
+                  padding:
+                    '18px',
+                  borderRadius:
+                    '16px',
+                  marginTop:
+                    '20px',
+                }}
+              >
+                <h3>
+                  Active Debt Strategy
+                </h3>
+
+                <p>
+                  {debtStrategy ===
+                    'snowball' &&
+                    'Snowball Strategy: prioritizing smallest balances first for fast wins and momentum.'}
+
+                  {debtStrategy ===
+                    'avalanche' &&
+                    'Avalanche Strategy: prioritizing highest interest debts first to minimize total interest costs.'}
+
+                  {debtStrategy ===
+                    'hybrid' &&
+                    'Hybrid Strategy: balancing emotional wins with financial optimization.'}
+                </p>
+              </div>
 
               <div
                 style={{
